@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="An interactive dithered and ASCII rendering of virus specimens."
+    />
+    <title>Virus Specimens / Field Study 001</title>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="viewer" aria-label="Interactive 3D virus specimen">
+        <div id="scene" class="scene"></div>
+
+        <div id="loading" class="loading" aria-hidden="true">
+          <span class="loading__bar"><span></span></span>
+        </div>
+      </section>
+
+      <footer class="brand-footer">
+        <div class="brand-footer__copy">
+          <p>AI<span class="brand-separator">×</span>Biosecurity</p>
+          <div
+            id="specimen-options"
+            class="specimen-options"
+            role="group"
+            aria-label="Specimen"
+          >
+            <button
+              type="button"
+              class="specimen-options__button"
+              data-specimen="bacteriophage"
+              aria-pressed="true"
+            >
+              Bacteriophage
+            </button>
+            <button
+              type="button"
+              class="specimen-options__button"
+              data-specimen="hepatitis-c"
+              aria-pressed="false"
+            >
+              Hepatitis C
+            </button>
+          </div>
+        </div>
+        <span class="brand-logo" role="img" aria-label="AI x Biosecurity logo"></span>
+      </footer>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
