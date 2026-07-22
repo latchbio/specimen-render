@@ -173,13 +173,13 @@ const rimLight = new THREE.DirectionalLight("#628cff", 4.8);
 attachCameraLight(rimLight, [5, 2, -4], [0, 0, -6]);
 
 const LIGHT_DEFAULTS = {
-  "key-azimuth": -51,
+  "key-azimuth": -166,
   "key-elevation": 38,
   "key-intensity": 7.2,
-  "rim-azimuth": 129,
-  "rim-elevation": 17,
+  "rim-azimuth": 155,
+  "rim-elevation": 42,
   "rim-intensity": 4.8,
-  "ambient-intensity": 1.35,
+  "ambient-intensity": 4.0,
 };
 
 function positionCameraLight(light, azimuth, elevation, radius) {
