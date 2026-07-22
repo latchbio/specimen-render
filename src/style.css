@@ -91,6 +91,224 @@ body {
   animation: none;
 }
 
+.performance-panel {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  z-index: 3;
+  width: min(200px, calc(100% - 24px));
+  padding: 14px 15px 13px;
+  border: 1px solid var(--line);
+  background: rgba(250, 246, 236, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.performance-panel__eyebrow,
+.performance-panel__hint {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.performance-panel__eyebrow {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.performance-panel__metrics {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0;
+}
+
+.performance-panel__metrics div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.performance-panel__metrics dt,
+.performance-panel__metrics dd {
+  margin: 0;
+  font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.performance-panel__metrics dt {
+  opacity: 0.56;
+}
+
+.performance-panel__metrics dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.performance-panel__hint {
+  opacity: 0.46;
+}
+
+.detail-lab-panel {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  z-index: 4;
+  display: grid;
+  width: 238px;
+  gap: 9px;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  background: rgba(250, 246, 236, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.detail-lab-panel label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.detail-lab-panel select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--background);
+  color: var(--blue);
+  font: 500 12px "DM Mono", ui-monospace, monospace;
+}
+
+.detail-lab-panel__rounded {
+  display: grid;
+  gap: 9px;
+}
+
+.detail-lab-panel__rounded[hidden] {
+  display: none;
+}
+
+.detail-lab-panel__range {
+  display: grid;
+  gap: 5px;
+}
+
+.detail-lab-panel__range > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detail-lab-panel__range output {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.58;
+}
+
+.detail-lab-panel__range input {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--blue);
+}
+
+.detail-lab-panel__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detail-lab-panel__toggle input {
+  margin: 0;
+  accent-color: var(--blue);
+}
+
+.detail-lab-panel p {
+  margin: 0;
+  font: 10px/1.4 "DM Mono", ui-monospace, monospace;
+  opacity: 0.52;
+}
+
+.light-controls {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  z-index: 4;
+  display: grid;
+  width: 238px;
+  max-height: calc(100% - 24px);
+  gap: 10px;
+  padding: 14px 15px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  background: rgba(250, 246, 236, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.detail-lab .light-controls {
+  top: 177px;
+  max-height: calc(100% - 189px);
+}
+
+.light-controls__heading,
+.light-controls label > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.light-controls__heading {
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.light-controls__heading button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  opacity: 0.5;
+}
+
+.light-controls__heading button:hover,
+.light-controls__heading button:focus-visible {
+  opacity: 1;
+}
+
+.light-controls label {
+  display: grid;
+  gap: 4px;
+  font: 10px/1.2 "DM Mono", ui-monospace, monospace;
+}
+
+.light-controls output {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.58;
+}
+
+.light-controls input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--blue);
+}
+
 @keyframes load {
   from {
     transform: translateX(-110%);
@@ -206,6 +424,42 @@ body {
   .brand-logo {
     width: 20px;
     height: 27px;
+  }
+
+  .performance-panel {
+    top: 4px;
+    width: 164px;
+    padding: 10px 11px;
+  }
+
+  .performance-panel__metrics {
+    gap: 4px;
+    margin-block: 8px;
+  }
+
+  .detail-lab-panel {
+    top: 4px;
+    right: 0;
+    width: 176px;
+    padding: 10px 11px;
+  }
+
+  .detail-lab-panel p {
+    display: none;
+  }
+
+  .light-controls {
+    top: 116px;
+    right: 0;
+    width: 176px;
+    max-height: calc(100% - 122px);
+    padding: 10px 11px;
+    gap: 7px;
+  }
+
+  .detail-lab .light-controls {
+    top: 112px;
+    max-height: calc(100% - 118px);
   }
 }
 

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A comparison lab for biological specimen detail-rendering techniques."
+    />
+    <title>Biological Specimens / Detail Lab</title>
+  </head>
+  <body class="detail-lab">
+    <main class="shell">
+      <section class="viewer" aria-label="Interactive detail rendering comparison">
+        <div id="scene" class="scene"></div>
+
+        <div id="loading" class="loading" aria-hidden="true">
+          <span class="loading__bar"><span></span></span>
+        </div>
+
+        <aside class="performance-panel" aria-label="Live 3D performance">
+          <p class="performance-panel__eyebrow">Detail lab</p>
+          <dl class="performance-panel__metrics">
+            <div><dt>Triangles</dt><dd id="metric-triangles">—</dd></div>
+            <div><dt>Asset size</dt><dd id="metric-size">—</dd></div>
+            <div><dt>LOD</dt><dd id="metric-lod">—</dd></div>
+            <div><dt>Distance</dt><dd id="metric-distance">—</dd></div>
+            <div><dt>FPS</dt><dd id="metric-fps">—</dd></div>
+            <div><dt>Draw calls</dt><dd id="metric-draw-calls">—</dd></div>
+          </dl>
+          <p class="performance-panel__hint">Scroll to test LOD</p>
+        </aside>
+
+        <aside class="detail-lab-panel" aria-label="Detail rendering method">
+          <label for="detail-mode">Rendering method</label>
+          <select id="detail-mode">
+            <option value="baseline">Baseline dither</option>
+            <option value="xdog">XDoG structural lines</option>
+            <option value="tonal">Four-band tonal dither</option>
+            <option value="cross">Cross pixels</option>
+            <option value="line">Contour line dither</option>
+            <option value="rounded">Rounded pixels</option>
+            <option value="frequency-modulation">Frequency modulation (Y)</option>
+            <option value="gtao">Subtle GTAO</option>
+            <option value="blue-noise">64×64 blue noise</option>
+            <option value="normal" selected>Normal / curvature</option>
+          </select>
+          <div id="rounded-dot-controls" class="detail-lab-panel__rounded" hidden>
+            <label class="detail-lab-panel__range" for="rounded-dot-size">
+              <span>
+                Rounded dot size
+                <output id="rounded-dot-size-value" for="rounded-dot-size">5 px</output>
+              </span>
+              <input id="rounded-dot-size" type="range" min="2" max="10" step="0.5" value="5" />
+            </label>
+            <label class="detail-lab-panel__toggle" for="rounded-dot-scale">
+              <span>Scale with zoom</span>
+              <input id="rounded-dot-scale" type="checkbox" />
+            </label>
+          </div>
+          <p>Switch methods while keeping the same model and camera angle.</p>
+        </aside>
+
+        <aside id="light-controls" class="light-controls" aria-label="Lighting controls">
+          <div class="light-controls__heading">
+            <span>Lighting</span>
+            <button type="button" data-reset-lights>Reset</button>
+          </div>
+          <label>
+            <span>Key azimuth <output data-light-value="key-azimuth">−51°</output></span>
+            <input name="key-azimuth" type="range" min="-180" max="180" value="-51" />
+          </label>
+          <label>
+            <span>Key elevation <output data-light-value="key-elevation">38°</output></span>
+            <input name="key-elevation" type="range" min="-80" max="80" value="38" />
+          </label>
+          <label>
+            <span>Key strength <output data-light-value="key-intensity">7.2</output></span>
+            <input name="key-intensity" type="range" min="0" max="12" step="0.1" value="7.2" />
+          </label>
+          <label>
+            <span>Rim azimuth <output data-light-value="rim-azimuth">129°</output></span>
+            <input name="rim-azimuth" type="range" min="-180" max="180" value="129" />
+          </label>
+          <label>
+            <span>Rim elevation <output data-light-value="rim-elevation">17°</output></span>
+            <input name="rim-elevation" type="range" min="-80" max="80" value="17" />
+          </label>
+          <label>
+            <span>Rim strength <output data-light-value="rim-intensity">4.8</output></span>
+            <input name="rim-intensity" type="range" min="0" max="12" step="0.1" value="4.8" />
+          </label>
+          <label>
+            <span>Ambient <output data-light-value="ambient-intensity">1.4</output></span>
+            <input name="ambient-intensity" type="range" min="0" max="5" step="0.1" value="1.35" />
+          </label>
+        </aside>
+      </section>
+
+      <footer class="brand-footer">
+        <div class="brand-footer__copy">
+          <p>AI<span class="brand-separator">×</span>Biosecurity / Detail Lab</p>
+          <div
+            id="specimen-options"
+            class="specimen-options"
+            role="group"
+            aria-label="Specimen"
+          >
+            <button type="button" class="specimen-options__button" data-specimen="bacteriophage" aria-pressed="true">Bacteriophage</button>
+            <button type="button" class="specimen-options__button" data-specimen="hepatitis-c" aria-pressed="false">Hepatitis C</button>
+            <button type="button" class="specimen-options__button" data-specimen="red-blood-cell" aria-pressed="false">Red Blood Cell</button>
+            <button type="button" class="specimen-options__button" data-specimen="virus" aria-pressed="false">Virus</button>
+            <button type="button" class="specimen-options__button" data-specimen="antibody" aria-pressed="false">Antibody</button>
+            <button type="button" class="specimen-options__button" data-specimen="cell-aggregate" aria-pressed="false">Cell Aggregate</button>
+            <button type="button" class="specimen-options__button" data-specimen="pebbled-sphere" aria-pressed="false">Pebbled Sphere</button>
+            <button type="button" class="specimen-options__button" data-specimen="basophil" aria-pressed="false">Basophil</button>
+            <button type="button" class="specimen-options__button" data-specimen="brain" aria-pressed="false">Brain</button>
+          </div>
+        </div>
+        <span class="brand-logo" role="img" aria-label="AI x Biosecurity logo"></span>
+      </footer>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

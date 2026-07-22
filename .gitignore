@@ -1,5 +1,6 @@
 node_modules/
 dist/
 .standalone-reference/
+.mesh-tools/
 .DS_Store
 *.log

@@ -3,6 +3,8 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import "./style.css";
 
@@ -14,7 +16,39 @@ const COLORS = {
 const sceneElement = document.querySelector("#scene");
 const loadingElement = document.querySelector("#loading");
 const specimenOptions = document.querySelector("#specimen-options");
+const detailModeSelect = document.querySelector("#detail-mode");
+const roundedDotControls = document.querySelector("#rounded-dot-controls");
+const roundedDotSizeInput = document.querySelector("#rounded-dot-size");
+const roundedDotSizeOutput = document.querySelector("#rounded-dot-size-value");
+const roundedDotScaleInput = document.querySelector("#rounded-dot-scale");
+const lightControls = document.querySelector("#light-controls");
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const metrics = {
+  triangles: document.querySelector("#metric-triangles"),
+  size: document.querySelector("#metric-size"),
+  lod: document.querySelector("#metric-lod"),
+  distance: document.querySelector("#metric-distance"),
+  fps: document.querySelector("#metric-fps"),
+  drawCalls: document.querySelector("#metric-draw-calls"),
+};
+
+const LOD_LEVELS = [
+  { distance: 0, label: "0 · HIGH" },
+  { distance: 8.2, label: "1 · MED" },
+];
+
+const DETAIL_MODES = {
+  baseline: 0,
+  xdog: 1,
+  tonal: 2,
+  gtao: 3,
+  "blue-noise": 4,
+  normal: 5,
+  cross: 6,
+  line: 7,
+  rounded: 8,
+  "frequency-modulation": 9,
+};
 
 const SPECIMENS = {
   bacteriophage: {
@@ -34,6 +68,63 @@ const SPECIMENS = {
     metalness: 0.08,
     smoothNormals: true,
   },
+  "red-blood-cell": {
+    id: "red-blood-cell",
+    label: "Red Blood Cell",
+    path: "/models/Red_Blood_Cell.obj",
+    embeddedKey: "__RED_BLOOD_CELL_OBJ__",
+    roughness: 0.72,
+    metalness: 0.08,
+    smoothNormals: true,
+  },
+  virus: {
+    id: "virus",
+    label: "Virus",
+    path: "/models/Virus.obj",
+    embeddedKey: "__VIRUS_OBJ__",
+    roughness: 0.72,
+    metalness: 0.08,
+  },
+  antibody: {
+    id: "antibody",
+    label: "Antibody",
+    path: "/models/Antibodies_Final.obj",
+    embeddedKey: "__ANTIBODY_OBJ__",
+    roughness: 0.72,
+    metalness: 0.08,
+  },
+  "cell-aggregate": {
+    id: "cell-aggregate",
+    label: "Cell Aggregate",
+    path: "/models/Cell_Aggregate.obj",
+    embeddedKey: "__CELL_AGGREGATE_OBJ__",
+    roughness: 0.78,
+    metalness: 0.03,
+  },
+  "pebbled-sphere": {
+    id: "pebbled-sphere",
+    label: "Pebbled Sphere",
+    path: "/models/Pebbled_Sphere.obj",
+    embeddedKey: "__PEBBLED_SPHERE_OBJ__",
+    roughness: 0.8,
+    metalness: 0.02,
+  },
+  basophil: {
+    id: "basophil",
+    label: "Basophil",
+    path: "/models/Basophil.obj",
+    embeddedKey: "__BASOPHIL_OBJ__",
+    roughness: 0.78,
+    metalness: 0.03,
+  },
+  brain: {
+    id: "brain",
+    label: "Brain",
+    path: "/models/Brain.obj",
+    embeddedKey: "__BRAIN_OBJ__",
+    roughness: 0.8,
+    metalness: 0.02,
+  },
 };
 
 const scene = new THREE.Scene();
@@ -41,6 +132,7 @@ scene.background = COLORS.beige;
 
 const camera = new THREE.PerspectiveCamera(31, 1, 0.1, 100);
 camera.position.set(6.4, 2.4, 7.7);
+scene.add(camera);
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
@@ -60,18 +152,74 @@ controls.minDistance = 5.4;
 controls.maxDistance = 13;
 controls.autoRotate = false;
 controls.target.set(0.8, 0, 0);
+const referenceCameraDistance = camera.position.distanceTo(controls.target);
 
 const isRotating = !prefersReducedMotion.matches;
 
-scene.add(new THREE.HemisphereLight("#f8f1df", "#06205f", 3.2));
+const hemisphereLight = new THREE.HemisphereLight("#f8f1df", "#06205f", 1.35);
+hemisphereLight.position.set(0, 1, 0);
+camera.add(hemisphereLight);
 
-const keyLight = new THREE.DirectionalLight("#ffffff", 5.4);
-keyLight.position.set(-4, 6, 7);
-scene.add(keyLight);
+function attachCameraLight(light, position, target) {
+  light.position.set(...position);
+  light.target.position.set(...target);
+  camera.add(light, light.target);
+}
 
-const rimLight = new THREE.DirectionalLight("#628cff", 4);
-rimLight.position.set(5, 1, -5);
-scene.add(rimLight);
+const keyLight = new THREE.DirectionalLight("#ffffff", 7.2);
+attachCameraLight(keyLight, [-5, 5, 4], [0, 0, -6]);
+
+const rimLight = new THREE.DirectionalLight("#628cff", 4.8);
+attachCameraLight(rimLight, [5, 2, -4], [0, 0, -6]);
+
+const LIGHT_DEFAULTS = {
+  "key-azimuth": -51,
+  "key-elevation": 38,
+  "key-intensity": 7.2,
+  "rim-azimuth": 129,
+  "rim-elevation": 17,
+  "rim-intensity": 4.8,
+  "ambient-intensity": 1.35,
+};
+
+function positionCameraLight(light, azimuth, elevation, radius) {
+  const azimuthRadians = THREE.MathUtils.degToRad(azimuth);
+  const elevationRadians = THREE.MathUtils.degToRad(elevation);
+  const horizontalRadius = Math.cos(elevationRadians) * radius;
+  light.position.set(
+    Math.sin(azimuthRadians) * horizontalRadius,
+    Math.sin(elevationRadians) * radius,
+    Math.cos(azimuthRadians) * horizontalRadius,
+  );
+}
+
+function updateLightControls() {
+  if (!lightControls) return;
+
+  const value = (name) =>
+    Number(lightControls.querySelector(`[name="${name}"]`)?.value ?? LIGHT_DEFAULTS[name]);
+  positionCameraLight(keyLight, value("key-azimuth"), value("key-elevation"), 8.2);
+  positionCameraLight(rimLight, value("rim-azimuth"), value("rim-elevation"), 6.7);
+  keyLight.intensity = value("key-intensity");
+  rimLight.intensity = value("rim-intensity");
+  hemisphereLight.intensity = value("ambient-intensity");
+
+  lightControls.querySelectorAll("[data-light-value]").forEach((output) => {
+    const name = output.dataset.lightValue;
+    const unit = name.endsWith("intensity") ? "" : "°";
+    output.value = `${value(name).toFixed(name.endsWith("intensity") ? 1 : 0)}${unit}`;
+  });
+}
+
+lightControls?.addEventListener("input", updateLightControls);
+lightControls?.querySelector("[data-reset-lights]")?.addEventListener("click", () => {
+  Object.entries(LIGHT_DEFAULTS).forEach(([name, value]) => {
+    const input = lightControls.querySelector(`[name="${name}"]`);
+    if (input) input.value = String(value);
+  });
+  updateLightControls();
+});
+updateLightControls();
 
 const specimen = new THREE.Group();
 specimen.position.x = 1.15;
@@ -86,6 +234,7 @@ const trackerConfigs = [
 ];
 const trackingBoxes = trackerConfigs.map(() => new THREE.Vector4(-2, -2, 0, 0));
 const trackingVisibility = new Float32Array(trackerConfigs.length);
+const trackingDissolve = new Float32Array(trackerConfigs.length);
 const projectedTrackerPosition = new THREE.Vector3();
 
 const material = new THREE.MeshStandardMaterial({
@@ -97,6 +246,195 @@ const material = new THREE.MeshStandardMaterial({
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
+const gtaoPass = detailModeSelect
+  ? new GTAOPass(
+      scene,
+      camera,
+      sceneElement.clientWidth,
+      sceneElement.clientHeight,
+      undefined,
+      {
+        radius: 0.18,
+        distanceExponent: 1.6,
+        thickness: 1.1,
+        distanceFallOff: 1,
+        scale: 1,
+        samples: 16,
+        screenSpaceRadius: false,
+      },
+    )
+  : null;
+if (gtaoPass) {
+  gtaoPass.blendIntensity = 0.32;
+  gtaoPass.enabled = false;
+  composer.addPass(gtaoPass);
+}
+const normalTarget = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true });
+normalTarget.texture.colorSpace = THREE.NoColorSpace;
+const normalMaterial = new THREE.MeshNormalMaterial();
+
+const fullScreenVertexShader = `
+  varying vec2 vUv;
+
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+class HorizontalPhasePass extends Pass {
+  constructor(background) {
+    super();
+    this.needsSwap = false;
+    this.width = 1;
+    this.pixelScale = 1;
+    this.outputUniform = null;
+
+    const targetOptions = {
+      depthBuffer: false,
+      stencilBuffer: false,
+      type: THREE.HalfFloatType,
+      format: THREE.RGBAFormat,
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+    };
+    this.targets = [
+      new THREE.WebGLRenderTarget(1, 1, targetOptions),
+      new THREE.WebGLRenderTarget(1, 1, targetOptions),
+    ];
+    this.targets.forEach((target) => {
+      target.texture.colorSpace = THREE.NoColorSpace;
+      target.texture.generateMipmaps = false;
+    });
+
+    this.toneMaterial = new THREE.ShaderMaterial({
+      depthTest: false,
+      depthWrite: false,
+      uniforms: {
+        tDiffuse: { value: null },
+        uBackground: { value: background },
+        uTexelSize: { value: new THREE.Vector2(1, 1) },
+      },
+      vertexShader: fullScreenVertexShader,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec3 uBackground;
+        uniform vec2 uTexelSize;
+        varying vec2 vUv;
+
+        float sourceLevel(vec3 color) {
+          float peak = max(max(color.r, color.g), color.b);
+          float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+          return mix(peak, luminance, 0.45);
+        }
+
+        void main() {
+          vec2 sampleUv = (floor(vUv / uTexelSize) + 0.5) * uTexelSize;
+          vec3 color = texture2D(tDiffuse, sampleUv).rgb;
+          float mask = step(0.12, distance(color, uBackground));
+          float center = sourceLevel(color);
+          float neighbors = (
+            sourceLevel(texture2D(tDiffuse, sampleUv + vec2(uTexelSize.x, 0.0)).rgb) +
+            sourceLevel(texture2D(tDiffuse, sampleUv - vec2(uTexelSize.x, 0.0)).rgb) +
+            sourceLevel(texture2D(tDiffuse, sampleUv + vec2(0.0, uTexelSize.y)).rgb) +
+            sourceLevel(texture2D(tDiffuse, sampleUv - vec2(0.0, uTexelSize.y)).rgb)
+          ) * 0.25;
+          float localContrast = center - neighbors;
+          float tone = clamp(center * 1.08 + localContrast * 1.4, 0.0, 1.0) * mask;
+          float quantizedTone = floor(tone * 10.0 + 0.5) / 10.0;
+          float phaseIncrement = quantizedTone * 0.05;
+          gl_FragColor = vec4(phaseIncrement, mask, quantizedTone, 1.0);
+        }
+      `,
+    });
+
+    this.scanMaterial = new THREE.ShaderMaterial({
+      depthTest: false,
+      depthWrite: false,
+      uniforms: {
+        tInput: { value: null },
+        uTexelSize: { value: new THREE.Vector2(1, 1) },
+        uOffset: { value: 1 },
+      },
+      vertexShader: fullScreenVertexShader,
+      fragmentShader: `
+        uniform sampler2D tInput;
+        uniform vec2 uTexelSize;
+        uniform float uOffset;
+        varying vec2 vUv;
+
+        void main() {
+          vec4 value = texture2D(tInput, vUv);
+          float sampleOffset = uOffset * uTexelSize.x;
+          if (vUv.x > sampleOffset - uTexelSize.x * 0.5) {
+            float previousPhase = texture2D(
+              tInput,
+              vUv - vec2(sampleOffset, 0.0)
+            ).r;
+            value.r = fract(value.r + previousPhase);
+          }
+          gl_FragColor = value;
+        }
+      `,
+    });
+
+    this.quad = new FullScreenQuad(this.toneMaterial);
+  }
+
+  setOutputUniform(uniform) {
+    this.outputUniform = uniform;
+  }
+
+  setSize(width, height) {
+    this.width = Math.max(1, Math.ceil(width / this.pixelScale));
+    const resolvedHeight = Math.max(1, Math.ceil(height / this.pixelScale));
+    this.targets.forEach((target) => target.setSize(this.width, resolvedHeight));
+    this.toneMaterial.uniforms.uTexelSize.value.set(
+      1 / this.width,
+      1 / resolvedHeight,
+    );
+    this.scanMaterial.uniforms.uTexelSize.value.set(
+      1 / this.width,
+      1 / resolvedHeight,
+    );
+  }
+
+  render(renderer, writeBuffer, readBuffer) {
+    const previousTarget = renderer.getRenderTarget();
+    this.toneMaterial.uniforms.tDiffuse.value = readBuffer.texture;
+    this.quad.material = this.toneMaterial;
+    renderer.setRenderTarget(this.targets[0]);
+    renderer.clear();
+    this.quad.render(renderer);
+
+    let sourceIndex = 0;
+    for (let offset = 1; offset < this.width; offset *= 2) {
+      const destinationIndex = 1 - sourceIndex;
+      this.scanMaterial.uniforms.tInput.value = this.targets[sourceIndex].texture;
+      this.scanMaterial.uniforms.uOffset.value = offset;
+      this.quad.material = this.scanMaterial;
+      renderer.setRenderTarget(this.targets[destinationIndex]);
+      renderer.clear();
+      this.quad.render(renderer);
+      sourceIndex = destinationIndex;
+    }
+
+    if (this.outputUniform) {
+      this.outputUniform.value = this.targets[sourceIndex].texture;
+    }
+    renderer.setRenderTarget(previousTarget);
+  }
+
+  dispose() {
+    this.targets.forEach((target) => target.dispose());
+    this.toneMaterial.dispose();
+    this.scanMaterial.dispose();
+    this.quad.dispose();
+  }
+}
+
+const frequencyModulationPass = new HorizontalPhasePass(COLORS.beige);
+frequencyModulationPass.enabled = false;
 
 function createGlyphAtlas() {
   const characters = "1TCA0G";
@@ -129,7 +467,8 @@ function createBlueNoiseTexture(size = 16) {
   const count = size * size;
   const ranks = new Uint8Array(count);
   const selected = new Uint8Array(count);
-  const points = [];
+  const nearestDistance = new Float32Array(count);
+  nearestDistance.fill(Infinity);
   let nextPoint = Math.floor(count / 2);
 
   for (let rank = 0; rank < count; rank += 1) {
@@ -138,29 +477,26 @@ function createBlueNoiseTexture(size = 16) {
 
       for (let candidate = 0; candidate < count; candidate += 1) {
         if (selected[candidate]) continue;
-
-        const x = candidate % size;
-        const y = Math.floor(candidate / size);
-        let nearestDistance = Infinity;
-
-        points.forEach((point) => {
-          const pointX = point % size;
-          const pointY = Math.floor(point / size);
-          const dx = Math.min(Math.abs(x - pointX), size - Math.abs(x - pointX));
-          const dy = Math.min(Math.abs(y - pointY), size - Math.abs(y - pointY));
-          nearestDistance = Math.min(nearestDistance, dx * dx + dy * dy);
-        });
-
-        if (nearestDistance > bestDistance) {
-          bestDistance = nearestDistance;
+        if (nearestDistance[candidate] > bestDistance) {
+          bestDistance = nearestDistance[candidate];
           nextPoint = candidate;
         }
       }
     }
 
     selected[nextPoint] = 1;
-    points.push(nextPoint);
     ranks[nextPoint] = Math.round(((rank + 1) / (count + 1)) * 255);
+
+    const pointX = nextPoint % size;
+    const pointY = Math.floor(nextPoint / size);
+    for (let candidate = 0; candidate < count; candidate += 1) {
+      if (selected[candidate]) continue;
+      const x = candidate % size;
+      const y = Math.floor(candidate / size);
+      const dx = Math.min(Math.abs(x - pointX), size - Math.abs(x - pointX));
+      const dy = Math.min(Math.abs(y - pointY), size - Math.abs(y - pointY));
+      nearestDistance[candidate] = Math.min(nearestDistance[candidate], dx * dx + dy * dy);
+    }
   }
 
   const texture = new THREE.DataTexture(ranks, size, size, THREE.RedFormat);
@@ -176,14 +512,22 @@ function createBlueNoiseTexture(size = 16) {
 const printShader = {
   uniforms: {
     tDiffuse: { value: null },
+    tNormal: { value: normalTarget.texture },
+    tFrequencyPhase: { value: frequencyModulationPass.targets[0].texture },
     uResolution: { value: new THREE.Vector2(1, 1) },
     uCellSize: { value: new THREE.Vector2(9, 14) },
     uDitherPixelSize: { value: 1.38 },
     uTime: { value: 0 },
     uTrackBoxes: { value: trackingBoxes },
     uTrackVisibility: { value: trackingVisibility },
+    uTrackDissolve: { value: trackingDissolve },
     uGlyphAtlas: { value: createGlyphAtlas() },
     uBlueNoise: { value: createBlueNoiseTexture() },
+    uBlueNoiseLarge: { value: createBlueNoiseTexture(detailModeSelect ? 64 : 16) },
+    uDetailMode: { value: DETAIL_MODES[detailModeSelect?.value] ?? DETAIL_MODES.normal },
+    uRoundedDotSize: { value: Number(roundedDotSizeInput?.value ?? 5) },
+    uRoundedDotScale: { value: roundedDotScaleInput?.checked ? 1 : 0 },
+    uZoomScale: { value: 1 },
     uBackground: { value: COLORS.beige },
     uBlue: { value: COLORS.blue },
   },
@@ -197,14 +541,22 @@ const printShader = {
   `,
   fragmentShader: `
     uniform sampler2D tDiffuse;
+    uniform sampler2D tNormal;
+    uniform sampler2D tFrequencyPhase;
     uniform sampler2D uGlyphAtlas;
     uniform sampler2D uBlueNoise;
+    uniform sampler2D uBlueNoiseLarge;
     uniform vec2 uResolution;
     uniform vec2 uCellSize;
     uniform float uDitherPixelSize;
     uniform float uTime;
+    uniform float uRoundedDotSize;
+    uniform float uRoundedDotScale;
+    uniform float uZoomScale;
+    uniform int uDetailMode;
     uniform vec4 uTrackBoxes[5];
     uniform float uTrackVisibility[5];
+    uniform float uTrackDissolve[5];
     uniform vec3 uBackground;
     uniform vec3 uBlue;
     varying vec2 vUv;
@@ -223,40 +575,161 @@ const printShader = {
       return fract(52.9829189 * fract(dot(position, vec2(0.06711056, 0.00583715))));
     }
 
-    float atkinsonTone(vec2 pixel, float pixelSize) {
+    float sourceLevel(vec3 color) {
+      float peak = max(max(color.r, color.g), color.b);
+      float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+      return mix(peak, luminance, 0.45);
+    }
+
+    float normalDetail(vec2 uv, vec2 texel) {
+      vec3 centerNormal = texture2D(tNormal, uv).rgb * 2.0 - 1.0;
+      float alignment = min(
+        max(
+          dot(centerNormal, texture2D(tNormal, uv + vec2(texel.x, 0.0)).rgb * 2.0 - 1.0),
+          -1.0
+        ),
+        max(
+          dot(centerNormal, texture2D(tNormal, uv - vec2(texel.x, 0.0)).rgb * 2.0 - 1.0),
+          -1.0
+        )
+      );
+      alignment = min(
+        alignment,
+        min(
+          dot(centerNormal, texture2D(tNormal, uv + vec2(0.0, texel.y)).rgb * 2.0 - 1.0),
+          dot(centerNormal, texture2D(tNormal, uv - vec2(0.0, texel.y)).rgb * 2.0 - 1.0)
+        )
+      );
+      return smoothstep(0.018, 0.22, 1.0 - clamp(alignment, -1.0, 1.0));
+    }
+
+    float phosphorTone(vec2 pixel, float pixelSize) {
       vec2 sampleUv = ((pixel + 0.5) * pixelSize) / uResolution;
       vec3 sampleColor = texture2D(tDiffuse, sampleUv).rgb;
       float mask = objectMask(sampleColor);
-      float brightness = smoothstep(0.04, 0.95, sampleColor.b);
-      return mask * clamp(0.16 + brightness * 0.7, 0.0, 1.0);
-    }
+      vec2 texel = vec2(pixelSize) / uResolution;
+      float center = sourceLevel(sampleColor);
+      float neighbors =
+        sourceLevel(texture2D(tDiffuse, sampleUv + vec2(texel.x, 0.0)).rgb) +
+        sourceLevel(texture2D(tDiffuse, sampleUv - vec2(texel.x, 0.0)).rgb) +
+        sourceLevel(texture2D(tDiffuse, sampleUv + vec2(0.0, texel.y)).rgb) +
+        sourceLevel(texture2D(tDiffuse, sampleUv - vec2(0.0, texel.y)).rgb);
+      float localDetail = center - neighbors * 0.25;
+      float shaped = smoothstep(
+        0.06,
+        0.82,
+        clamp(center * 1.08 + localDetail * 1.3, 0.0, 1.0)
+      );
+      shaped = pow(shaped, 0.9);
+      float geometryDetail = max(
+        normalDetail(sampleUv, texel),
+        normalDetail(sampleUv, texel * 2.0) * 0.72
+      );
+      vec3 viewNormal = normalize(texture2D(tNormal, sampleUv).rgb * 2.0 - 1.0);
+      float facing = smoothstep(0.12, 0.96, abs(viewNormal.z));
+      float baseTone = 0.045 + shaped * 0.68 + (facing - 0.5) * 0.12;
+      float detailCut = geometryDetail * mix(0.18, 0.32, shaped);
+      float normalTone = clamp(baseTone - detailCut, 0.015, 0.82);
 
-    float quantizationError(vec2 pixel, float pixelSize) {
-      float tone = atkinsonTone(pixel, pixelSize);
-      return tone - step(0.5, tone);
+      if (uDetailMode == 0) {
+        return mask * clamp(0.08 + shaped * 0.68, 0.02, 0.78);
+      }
+
+      if (uDetailMode == 1) {
+        vec2 wideTexel = texel * 3.0;
+        float wideAverage = (
+          sourceLevel(texture2D(tDiffuse, sampleUv + vec2(wideTexel.x, 0.0)).rgb) +
+          sourceLevel(texture2D(tDiffuse, sampleUv - vec2(wideTexel.x, 0.0)).rgb) +
+          sourceLevel(texture2D(tDiffuse, sampleUv + vec2(0.0, wideTexel.y)).rgb) +
+          sourceLevel(texture2D(tDiffuse, sampleUv - vec2(0.0, wideTexel.y)).rgb)
+        ) * 0.25;
+        float dog = abs(neighbors * 0.25 - wideAverage);
+        float structuralLine = smoothstep(0.025, 0.16, dog + geometryDetail * 0.16);
+        return mask * mix(clamp(0.055 + shaped * 0.44, 0.02, 0.58), 0.96, structuralLine);
+      }
+
+      if (uDetailMode == 2) {
+        return mask * (floor(clamp(normalTone, 0.0, 1.0) * 4.0 + 0.5) / 4.0);
+      }
+
+      return mask * normalTone;
     }
 
     void main() {
       float pixelSize = max(1.0, uDitherPixelSize);
       vec2 ditherPixel = floor(gl_FragCoord.xy / pixelSize);
-      float tone = atkinsonTone(ditherPixel, pixelSize);
-      float propagatedError =
-        quantizationError(ditherPixel + vec2(-1.0, 0.0), pixelSize) +
-        quantizationError(ditherPixel + vec2(-2.0, 0.0), pixelSize) +
-        quantizationError(ditherPixel + vec2(1.0, -1.0), pixelSize) +
-        quantizationError(ditherPixel + vec2(0.0, -1.0), pixelSize) +
-        quantizationError(ditherPixel + vec2(-1.0, -1.0), pixelSize) +
-        quantizationError(ditherPixel + vec2(0.0, -2.0), pixelSize);
-      float correctedTone = clamp(tone + propagatedError * 0.125, 0.0, 1.0);
-      float threshold = mix(0.5, interleavedNoise(ditherPixel), 0.62);
-      float ditherInk = step(threshold, correctedTone) * step(0.01, tone);
+      float tone = phosphorTone(ditherPixel, pixelSize);
+      float blueNoise = texture2D(uBlueNoise, (ditherPixel + 0.5) / 16.0).r;
+      float largeBlueNoise = texture2D(uBlueNoiseLarge, (ditherPixel + 0.5) / 64.0).r;
+      float threshold = uDetailMode == 4
+        ? largeBlueNoise
+        : mix(blueNoise, interleavedNoise(ditherPixel), 0.72);
+      float ditherInk = step(threshold, tone) * step(0.01, tone);
+      if (uDetailMode == 9) {
+        float fmPixel = 1.0;
+        vec2 fmCell = floor(gl_FragCoord.xy / fmPixel);
+        vec2 localUv = fract(gl_FragCoord.xy / fmPixel);
+        vec2 fmUv = (fmCell + 0.5) * fmPixel / uResolution;
+        vec3 fmData = texture2D(tFrequencyPhase, fmUv).rgb;
+        float duty = mix(0.99, 0.82, fmData.b);
+        float xMark = step(duty, fract(fmData.r));
+        float yMark = step(0.62, fract(fmCell.y / 3.0));
+        float squareFill = step(0.12, localUv.x) * step(localUv.x, 0.88) *
+          step(0.12, localUv.y) * step(localUv.y, 0.88);
+        ditherInk = xMark * yMark * squareFill * step(0.5, fmData.g);
+      }
+      if (uDetailMode == 6) {
+        float crossSize = max(3.0, uDitherPixelSize * 3.0);
+        vec2 crossPixel = floor(gl_FragCoord.xy / crossSize);
+        float crossTone = phosphorTone(crossPixel, crossSize);
+        float crossNoise = texture2D(uBlueNoiseLarge, (crossPixel + 0.5) / 64.0).r;
+        vec2 crossUv = abs(fract(gl_FragCoord.xy / crossSize) - 0.5);
+        float armLength = mix(0.22, 0.49, smoothstep(0.04, 0.82, crossTone));
+        float armWidth = mix(0.065, 0.14, smoothstep(0.12, 0.82, crossTone));
+        float verticalArm = (1.0 - step(armWidth, crossUv.x)) *
+          (1.0 - step(armLength, crossUv.y));
+        float horizontalArm = (1.0 - step(armWidth, crossUv.y)) *
+          (1.0 - step(armLength, crossUv.x));
+        float crossGlyph = max(verticalArm, horizontalArm);
+        ditherInk = crossGlyph * step(crossNoise, clamp(crossTone * 1.18, 0.0, 1.0));
+        tone = crossTone;
+      }
+      if (uDetailMode == 7) {
+        float linePhase = abs(fract((ditherPixel.x + ditherPixel.y * 0.68) / 6.0) - 0.5);
+        float lineWidth = mix(0.055, 0.47, smoothstep(0.04, 0.8, tone));
+        float lineInk = 1.0 - smoothstep(lineWidth, lineWidth + 0.055, linePhase);
+        lineInk = max(lineInk * step(0.055, tone), step(threshold, tone) * step(0.76, tone));
+        ditherInk = lineInk;
+      }
+      if (uDetailMode == 8) {
+        float roundedSize = uDitherPixelSize * uRoundedDotSize *
+          mix(1.0, uZoomScale, uRoundedDotScale);
+        vec2 roundedPixel = floor(gl_FragCoord.xy / roundedSize);
+        float roundedTone = phosphorTone(roundedPixel, roundedSize);
+        vec2 roundedUv = fract(gl_FragCoord.xy / roundedSize) - 0.5;
+        float radius = min(0.68, sqrt(clamp(roundedTone, 0.0, 1.0) / 3.14159265));
+        float circleEdge = max(0.025, 0.8 / roundedSize);
+        float circleInk = 1.0 - smoothstep(
+          radius - circleEdge,
+          radius + circleEdge,
+          length(roundedUv)
+        );
+        vec2 fragmentUv = gl_FragCoord.xy / uResolution;
+        float silhouetteCoverage = smoothstep(
+          0.12,
+          0.88,
+          objectMask(texture2D(tDiffuse, fragmentUv).rgb)
+        );
+        ditherInk = circleInk * step(0.01, roundedTone) * silhouetteCoverage;
+        tone = roundedTone;
+      }
 
       vec2 cell = floor(gl_FragCoord.xy / uCellSize);
       vec2 centerPixel = (cell + 0.5) * uCellSize;
       vec2 centerUv = centerPixel / uResolution;
       vec3 cellColor = texture2D(tDiffuse, centerUv).rgb;
       float cellMask = objectMask(cellColor);
-      float brightness = clamp(cellColor.b * 1.16, 0.0, 1.0);
+      float brightness = clamp(sourceLevel(cellColor) * 1.16, 0.0, 1.0);
       vec2 cellStep = uCellSize / uResolution;
       float horizontalMask = objectMask(texture2D(tDiffuse, centerUv + vec2(cellStep.x, 0.0)).rgb);
       float verticalMask = objectMask(texture2D(tDiffuse, centerUv + vec2(0.0, cellStep.y)).rgb);
@@ -275,8 +748,8 @@ const printShader = {
       float asciiInk = step(0.42, glyph) * insideGlyph * step(0.08, cellMask);
 
       vec2 screenUv = gl_FragCoord.xy / uResolution;
-      float trackingInside = 0.0;
       float trackingBorder = 0.0;
+      float trackingAscii = 0.0;
       vec2 borderWidth = vec2(4.0) / uResolution;
 
       for (int index = 0; index < 5; index++) {
@@ -287,28 +760,40 @@ const printShader = {
         float outer = 1.0 - step(0.0, max(outerDistance.x, outerDistance.y));
         float inner = 1.0 - step(0.0, max(innerDistance.x, innerDistance.y));
         float visibility = uTrackVisibility[index];
-        trackingInside = max(trackingInside, outer * visibility);
+        float boxActive = step(0.001, visibility);
+        float dissolve = uTrackDissolve[index];
         trackingBorder = max(trackingBorder, outer * (1.0 - inner) * visibility);
+        trackingAscii = max(
+          trackingAscii,
+          outer * boxActive * step(dissolve, dissolveThreshold)
+        );
       }
 
-      float localBlend = trackingInside * 0.9;
-      float useAscii = step(dissolveThreshold, localBlend);
+      float useAscii = step(0.5, trackingAscii);
       float ink = mix(ditherInk, asciiInk, useAscii);
       float sourceMask = objectMask(texture2D(tDiffuse, screenUv).rgb);
-      float scanline = 0.92 + 0.08 * sin(gl_FragCoord.y * 3.14159265 / (uDitherPixelSize * 1.35));
-      float shimmer = (interleavedNoise(floor(gl_FragCoord.xy / uDitherPixelSize) + floor(uTime * 9.0)) - 0.5) * 0.035;
-      float backgroundNoise = step(
-        0.982,
-        interleavedNoise(floor(gl_FragCoord.xy / (uDitherPixelSize * 1.15)))
-      ) * (1.0 - sourceMask) * 0.13;
+      float scanline = uDetailMode == 6 || uDetailMode == 8 || uDetailMode == 9
+        ? 1.0
+        : 0.9 + 0.1 * sin(gl_FragCoord.y * 3.14159265);
+      float shimmer = uDetailMode == 9
+        ? 0.0
+        : (interleavedNoise(ditherPixel + floor(uTime * 7.0)) - 0.5) * 0.025;
+      float backgroundNoise = uDetailMode == 9
+        ? 0.0
+        : step(0.987, interleavedNoise(floor(gl_FragCoord.xy))) *
+          (1.0 - sourceMask) * 0.06;
+      vec2 vignetteUv = screenUv * 2.0 - 1.0;
+      float vignette = 1.0 - smoothstep(0.55, 1.35, dot(vignetteUv, vignetteUv));
       float phosphor = clamp(
         ink * scanline +
+        tone * sourceMask * (uDetailMode == 9 ? 0.0 : 0.09) +
         backgroundNoise +
         shimmer * max(ink, sourceMask * 0.16),
         0.0,
         1.0
       );
       phosphor = max(phosphor, trackingBorder * scanline * 0.92);
+      phosphor *= mix(0.72, 1.0, vignette);
       vec3 finalColor = mix(uBackground, uBlue, phosphor);
       gl_FragColor = vec4(linearToSrgb(finalColor), 1.0);
     }
@@ -316,7 +801,39 @@ const printShader = {
 };
 
 const printPass = new ShaderPass(printShader);
+frequencyModulationPass.setOutputUniform(printPass.uniforms.tFrequencyPhase);
+composer.addPass(frequencyModulationPass);
 composer.addPass(printPass);
+
+function setDetailMode(mode) {
+  const resolvedMode = Object.hasOwn(DETAIL_MODES, mode) ? mode : "normal";
+  printPass.uniforms.uDetailMode.value = DETAIL_MODES[resolvedMode];
+  frequencyModulationPass.enabled = resolvedMode === "frequency-modulation";
+  if (gtaoPass) gtaoPass.enabled = resolvedMode === "gtao";
+  if (roundedDotControls) roundedDotControls.hidden = resolvedMode !== "rounded";
+  document.body.dataset.detailMode = resolvedMode;
+}
+
+detailModeSelect?.addEventListener("change", (event) => {
+  setDetailMode(event.target.value);
+});
+setDetailMode(detailModeSelect?.value ?? "normal");
+
+function updateRoundedDotSize() {
+  const size = Number(roundedDotSizeInput?.value ?? 5);
+  printPass.uniforms.uRoundedDotSize.value = size;
+  if (roundedDotSizeOutput) roundedDotSizeOutput.value = `${size} px`;
+}
+
+roundedDotSizeInput?.addEventListener("input", updateRoundedDotSize);
+updateRoundedDotSize();
+
+function updateRoundedDotScale() {
+  printPass.uniforms.uRoundedDotScale.value = roundedDotScaleInput?.checked ? 1 : 0;
+}
+
+roundedDotScaleInput?.addEventListener("change", updateRoundedDotScale);
+updateRoundedDotScale();
 
 function frameSpecimen(object) {
   const bounds = new THREE.Box3().setFromObject(object);
@@ -345,6 +862,9 @@ function frameSpecimen(object) {
 const loader = new OBJLoader();
 const modelCache = new Map();
 let activeSpecimenId = null;
+let activeLod = null;
+let activeLodTriangles = [];
+let activeLodSizes = [];
 let loadToken = 0;
 
 function clearSpecimen() {
@@ -584,18 +1104,16 @@ function smoothNormalsByPosition(geometry) {
   geometry.normalizeNormals();
 }
 
-function prepareGeometry(mesh, specimenConfig) {
-  if (!specimenConfig.smoothNormals) {
-    if (!mesh.geometry.userData.smoothed) {
-      mesh.geometry.computeVertexNormals();
-      mesh.geometry.userData.smoothed = true;
-    }
-    return;
-  }
-
+function prepareGeometry(mesh, specimenConfig, isLod = false) {
   if (mesh.geometry.userData.smoothed) return;
 
   const source = mesh.geometry;
+  if (isLod || !specimenConfig.smoothNormals) {
+    smoothNormalsByPosition(source);
+    source.userData.smoothed = true;
+    return;
+  }
+
   let geometry = weldByPosition(source);
   geometry = loopSubdivide(geometry);
   geometry = loopSubdivide(geometry);
@@ -605,20 +1123,43 @@ function prepareGeometry(mesh, specimenConfig) {
   mesh.geometry = geometry;
 }
 
-async function displaySpecimen(object, specimenConfig, token) {
+function countTriangles(object) {
+  let triangles = 0;
+  object.traverse((child) => {
+    if (!child.isMesh) return;
+    const position = child.geometry?.getAttribute("position");
+    if (!position) return;
+    triangles += child.geometry.index
+      ? child.geometry.index.count / 3
+      : position.count / 3;
+  });
+  return Math.round(triangles);
+}
+
+function displaySpecimen(entries, specimenConfig, token) {
   if (token !== loadToken) return;
 
   material.roughness = specimenConfig.roughness ?? 0.72;
   material.metalness = specimenConfig.metalness ?? 0.08;
   material.needsUpdate = true;
 
-  object.traverse((child) => {
-    if (!child.isMesh) return;
-    child.material = material;
+  const lod = new THREE.LOD();
+  const triangleCounts = [];
+  const assetSizes = [];
+  entries.forEach(({ object, bytes }, index) => {
+    object.traverse((child) => {
+      if (child.isMesh) child.material = material;
+    });
+    triangleCounts.push(countTriangles(object));
+    assetSizes.push(bytes);
+    lod.addLevel(object, LOD_LEVELS[index].distance);
   });
 
   clearSpecimen();
-  specimen.add(frameSpecimen(object));
+  specimen.add(frameSpecimen(lod));
+  activeLod = lod;
+  activeLodTriangles = triangleCounts;
+  activeLodSizes = assetSizes;
   loadingElement.classList.remove("is-error");
   loadingElement.classList.add("is-hidden");
 }
@@ -645,25 +1186,69 @@ function cloneCachedObject(object) {
   return clone;
 }
 
-function ensurePrepared(object, config) {
+function ensurePrepared(object, config, isLod = false) {
   object.traverse((child) => {
     if (!child.isMesh) return;
-    prepareGeometry(child, config);
+    prepareGeometry(child, config, isLod);
   });
   return object;
 }
 
-function presentSpecimen(object, config, token) {
+function presentSpecimen(entries, config, token) {
   try {
-    ensurePrepared(object, config);
+    entries.forEach(({ object }, index) => ensurePrepared(object, config, index > 0));
   } catch (error) {
     handleModelError(error, config.label);
     return;
   }
 
-  displaySpecimen(cloneCachedObject(object), config, token).catch((error) => {
-    if (token !== loadToken) return;
+  try {
+    displaySpecimen(
+      entries.map(({ object, bytes }) => ({ object: cloneCachedObject(object), bytes })),
+      config,
+      token,
+    );
+  } catch (error) {
+    if (token !== loadToken) {
+      return;
+    }
     handleModelError(error, config.label);
+  }
+}
+
+function getLodAsset(config, level) {
+  const suffix = `_LOD${level}`;
+  return {
+    path: config.path.replace(/\.obj$/i, `${suffix}.obj`),
+    embeddedKey: config.embeddedKey.replace(/__$/, `${suffix}__`),
+  };
+}
+
+function validateLoadedObject(object, path) {
+  if (countTriangles(object) === 0) {
+    throw new Error(`The model at ${path} contains no renderable geometry.`);
+  }
+  return object;
+}
+
+function loadObject(path, embeddedKey) {
+  const embeddedModel = globalThis[embeddedKey];
+  if (typeof embeddedModel === "string") {
+    return Promise.resolve({
+      object: validateLoadedObject(loader.parse(embeddedModel), path),
+      bytes: new Blob([embeddedModel]).size,
+    });
+  }
+
+  return fetch(path).then(async (response) => {
+    if (!response.ok) {
+      throw new Error(`Could not load ${path} (${response.status}).`);
+    }
+    const source = await response.text();
+    return {
+      object: validateLoadedObject(loader.parse(source), path),
+      bytes: new Blob([source]).size,
+    };
   });
 }
 
@@ -682,34 +1267,33 @@ function loadSpecimen(specimenId) {
     return;
   }
 
-  const embeddedModel = globalThis[config.embeddedKey];
-  if (typeof embeddedModel === "string") {
-    try {
-      const parsed = loader.parse(embeddedModel);
-      modelCache.set(specimenId, parsed);
-      if (token !== loadToken) return;
-      presentSpecimen(parsed, config, token);
-    } catch (error) {
-      if (token !== loadToken) return;
-      handleModelError(error, config.label);
-    }
-    return;
-  }
+  const assets = [
+    { path: config.path, embeddedKey: config.embeddedKey },
+    ...LOD_LEVELS.slice(1).map((_, index) => getLodAsset(config, index + 1)),
+  ];
 
-  loader.load(
-    config.path,
-    (object) => {
-      modelCache.set(specimenId, object);
+  Promise.allSettled(assets.map(({ path, embeddedKey }) => loadObject(path, embeddedKey)))
+    .then((results) => {
       if (token !== loadToken) return;
-      presentSpecimen(object, config, token);
-    },
-    undefined,
-    (error) => {
+
+      if (results[0].status === "rejected") {
+        throw results[0].reason;
+      }
+
+      const entries = [];
+      for (const result of results) {
+        if (result.status === "rejected") break;
+        entries.push(result.value);
+      }
+
+      modelCache.set(specimenId, entries);
+      presentSpecimen(entries, config, token);
+    })
+    .catch((error) => {
       if (token !== loadToken) return;
       if (activeSpecimenId === specimenId) activeSpecimenId = null;
       handleModelError(error, config.label);
-    },
-  );
+    });
 }
 
 specimenOptions?.addEventListener("click", (event) => {
@@ -729,9 +1313,11 @@ function updateSize() {
   camera.updateProjectionMatrix();
   renderer.setSize(width, height);
   composer.setSize(width, height);
+  normalTarget.setSize(width * pixelRatio, height * pixelRatio);
+  frequencyModulationPass.setSize(width * pixelRatio, height * pixelRatio);
   printPass.uniforms.uResolution.value.set(width * pixelRatio, height * pixelRatio);
   printPass.uniforms.uCellSize.value.set(5 * pixelRatio, 7 * pixelRatio);
-  printPass.uniforms.uDitherPixelSize.value = 1.38 * pixelRatio;
+  printPass.uniforms.uDitherPixelSize.value = pixelRatio;
 }
 
 const resizeObserver = new ResizeObserver(updateSize);
@@ -739,6 +1325,41 @@ resizeObserver.observe(sceneElement);
 updateSize();
 
 const clock = new THREE.Clock();
+const triangleFormatter = new Intl.NumberFormat("en-US");
+const lodWorldPosition = new THREE.Vector3();
+const cameraWorldPosition = new THREE.Vector3();
+let fpsFrameCount = 0;
+let fpsElapsed = 0;
+let displayedFps = 0;
+let metricsElapsed = 0;
+
+function updatePerformanceMetrics(delta) {
+  fpsFrameCount += 1;
+  fpsElapsed += delta;
+  metricsElapsed += delta;
+
+  if (fpsElapsed >= 0.5) {
+    displayedFps = Math.round(fpsFrameCount / fpsElapsed);
+    fpsFrameCount = 0;
+    fpsElapsed = 0;
+  }
+
+  if (!activeLod || metricsElapsed < 0.15) return;
+  metricsElapsed = 0;
+
+  const level = Math.min(activeLod.getCurrentLevel(), activeLodTriangles.length - 1);
+  activeLod.getWorldPosition(lodWorldPosition);
+  camera.getWorldPosition(cameraWorldPosition);
+  const distance = cameraWorldPosition.distanceTo(lodWorldPosition);
+  const sizeInMb = (activeLodSizes[level] ?? 0) / 1_000_000;
+
+  metrics.triangles.textContent = triangleFormatter.format(activeLodTriangles[level] ?? 0);
+  metrics.size.textContent = `${sizeInMb.toFixed(sizeInMb < 1 ? 2 : 1)} MB`;
+  metrics.lod.textContent = LOD_LEVELS[level]?.label ?? String(level);
+  metrics.distance.textContent = `${distance.toFixed(1)} m`;
+  metrics.fps.textContent = displayedFps ? String(displayedFps) : "—";
+  metrics.drawCalls.textContent = String(renderer.info.render.calls);
+}
 
 function smootherstep(progress) {
   return progress * progress * progress * (progress * (progress * 6 - 15) + 10);
@@ -758,6 +1379,18 @@ function getTrackerVisibility(config, time) {
   return 0;
 }
 
+function getTrackerDissolve(config, time) {
+  const localTime = (time + config.phase) % config.period;
+  const fadeDuration = 0.7;
+  const visibleUntil = config.period * 0.56;
+
+  if (localTime < visibleUntil) return 0;
+  if (localTime < visibleUntil + fadeDuration) {
+    return smootherstep((localTime - visibleUntil) / fadeDuration);
+  }
+  return 1;
+}
+
 function updateTrackingBoxes(time) {
   const width = sceneElement.clientWidth;
   const height = sceneElement.clientHeight;
@@ -766,11 +1399,14 @@ function updateTrackingBoxes(time) {
   trackerConfigs.forEach((config, index) => {
     if (!config.anchor || width === 0 || height === 0) {
       trackingBoxes[index].set(-2, -2, 0, 0);
+      trackingVisibility[index] = 0;
+      trackingDissolve[index] = 1;
       return;
     }
 
     const visibility = getTrackerVisibility(config, animationTime);
     trackingVisibility[index] = visibility;
+    trackingDissolve[index] = getTrackerDissolve(config, animationTime);
     config.anchor.getWorldPosition(projectedTrackerPosition);
     projectedTrackerPosition.project(camera);
 
@@ -796,8 +1432,21 @@ function animate() {
   printPass.uniforms.uTime.value = clock.elapsedTime;
   if (isRotating) specimen.rotation.y += delta * 0.42;
   controls.update();
+  const cameraDistance = camera.position.distanceTo(controls.target);
+  printPass.uniforms.uZoomScale.value = THREE.MathUtils.clamp(
+    referenceCameraDistance / cameraDistance,
+    referenceCameraDistance / controls.maxDistance,
+    referenceCameraDistance / controls.minDistance,
+  );
   updateTrackingBoxes(clock.elapsedTime);
+  scene.overrideMaterial = normalMaterial;
+  renderer.setRenderTarget(normalTarget);
+  renderer.clear();
+  renderer.render(scene, camera);
+  scene.overrideMaterial = null;
+  renderer.setRenderTarget(null);
   composer.render();
+  updatePerformanceMetrics(delta);
 }
 
 renderer.setAnimationLoop(animate);
