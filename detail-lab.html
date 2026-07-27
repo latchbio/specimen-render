@@ -58,6 +58,37 @@
               <input id="rounded-dot-scale" type="checkbox" />
             </label>
           </div>
+          <div id="frequency-modulation-controls" class="detail-lab-panel__rounded" hidden>
+            <label class="detail-lab-panel__range" for="fm-omega">
+              <span>
+                Omega period factor
+                <output id="fm-omega-value" for="fm-omega">1.05</output>
+              </span>
+              <input id="fm-omega" type="range" min="0.05" max="3" step="0.01" value="1.05" />
+            </label>
+            <label class="detail-lab-panel__range" for="fm-phase">
+              <span>
+                Phase multiplier
+                <output id="fm-phase-value" for="fm-phase">1.23</output>
+              </span>
+              <input id="fm-phase" type="range" min="0.05" max="8" step="0.01" value="1.23" />
+            </label>
+            <label class="detail-lab-panel__range" for="fm-quant">
+              <span>
+                Quantization
+                <output id="fm-quant-value" for="fm-quant">49</output>
+              </span>
+              <input id="fm-quant" type="range" min="2" max="255" step="1" value="49" />
+            </label>
+            <label class="detail-lab-panel__toggle" for="fm-clahe">
+              <span>Apply CLAHE</span>
+              <input id="fm-clahe" type="checkbox" checked />
+            </label>
+            <label class="detail-lab-panel__toggle" for="fm-negate">
+              <span>Negate output</span>
+              <input id="fm-negate" type="checkbox" />
+            </label>
+          </div>
           <p>Switch methods while keeping the same model and camera angle.</p>
         </aside>
 

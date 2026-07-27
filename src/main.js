@@ -21,6 +21,15 @@ const roundedDotControls = document.querySelector("#rounded-dot-controls");
 const roundedDotSizeInput = document.querySelector("#rounded-dot-size");
 const roundedDotSizeOutput = document.querySelector("#rounded-dot-size-value");
 const roundedDotScaleInput = document.querySelector("#rounded-dot-scale");
+const frequencyModulationControls = document.querySelector("#frequency-modulation-controls");
+const fmOmegaInput = document.querySelector("#fm-omega");
+const fmOmegaOutput = document.querySelector("#fm-omega-value");
+const fmPhaseInput = document.querySelector("#fm-phase");
+const fmPhaseOutput = document.querySelector("#fm-phase-value");
+const fmQuantInput = document.querySelector("#fm-quant");
+const fmQuantOutput = document.querySelector("#fm-quant-value");
+const fmClaheInput = document.querySelector("#fm-clahe");
+const fmNegateInput = document.querySelector("#fm-negate");
 const lightControls = document.querySelector("#light-controls");
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const metrics = {
@@ -314,18 +323,22 @@ class HorizontalPhasePass extends Pass {
         tDiffuse: { value: null },
         uBackground: { value: background },
         uTexelSize: { value: new THREE.Vector2(1, 1) },
+        uOmega: { value: 1.05 },
+        uQuantLevel: { value: 49 },
+        uUseClahe: { value: 1 },
       },
       vertexShader: fullScreenVertexShader,
       fragmentShader: `
         uniform sampler2D tDiffuse;
         uniform vec3 uBackground;
         uniform vec2 uTexelSize;
+        uniform float uOmega;
+        uniform float uQuantLevel;
+        uniform float uUseClahe;
         varying vec2 vUv;
 
         float sourceLevel(vec3 color) {
-          float peak = max(max(color.r, color.g), color.b);
-          float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
-          return mix(peak, luminance, 0.45);
+          return dot(color, vec3(0.2126, 0.7152, 0.0722));
         }
 
         void main() {
@@ -337,12 +350,25 @@ class HorizontalPhasePass extends Pass {
             sourceLevel(texture2D(tDiffuse, sampleUv + vec2(uTexelSize.x, 0.0)).rgb) +
             sourceLevel(texture2D(tDiffuse, sampleUv - vec2(uTexelSize.x, 0.0)).rgb) +
             sourceLevel(texture2D(tDiffuse, sampleUv + vec2(0.0, uTexelSize.y)).rgb) +
-            sourceLevel(texture2D(tDiffuse, sampleUv - vec2(0.0, uTexelSize.y)).rgb)
-          ) * 0.25;
-          float localContrast = center - neighbors;
-          float tone = clamp(center * 1.08 + localContrast * 1.4, 0.0, 1.0) * mask;
-          float quantizedTone = floor(tone * 10.0 + 0.5) / 10.0;
-          float phaseIncrement = quantizedTone * 0.05;
+            sourceLevel(texture2D(tDiffuse, sampleUv - vec2(0.0, uTexelSize.y)).rgb) +
+            sourceLevel(texture2D(tDiffuse, sampleUv + vec2(uTexelSize.x, uTexelSize.y)).rgb) +
+            sourceLevel(texture2D(tDiffuse, sampleUv + vec2(-uTexelSize.x, uTexelSize.y)).rgb) +
+            sourceLevel(texture2D(tDiffuse, sampleUv + vec2(uTexelSize.x, -uTexelSize.y)).rgb) +
+            sourceLevel(texture2D(tDiffuse, sampleUv + vec2(-uTexelSize.x, -uTexelSize.y)).rgb)
+          ) * 0.125;
+          float localMean = neighbors;
+          float localDeviation = abs(center - localMean);
+          float claheTone = clamp(
+            (center - localMean) * mix(1.0, 3.2, clamp(localDeviation * 4.0, 0.0, 1.0)) +
+              localMean,
+            0.0,
+            1.0
+          );
+          float tone = mix(center, claheTone, uUseClahe) * mask;
+          float levels = max(2.0, uQuantLevel);
+          float quantizedTone = floor(tone * (levels - 1.0) + 0.5) / (levels - 1.0);
+          // Higher omega => slower phase advance ("less response"), matching the reference control.
+          float phaseIncrement = quantizedTone * (0.2 / max(uOmega, 0.001));
           gl_FragColor = vec4(phaseIncrement, mask, quantizedTone, 1.0);
         }
       `,
@@ -528,6 +554,8 @@ const printShader = {
     uRoundedDotSize: { value: Number(roundedDotSizeInput?.value ?? 5) },
     uRoundedDotScale: { value: roundedDotScaleInput?.checked ? 1 : 0 },
     uZoomScale: { value: 1 },
+    uPhaseMultiplier: { value: Number(fmPhaseInput?.value ?? 1.23) },
+    uFmNegate: { value: fmNegateInput?.checked ? 1 : 0 },
     uBackground: { value: COLORS.beige },
     uBlue: { value: COLORS.blue },
   },
@@ -553,6 +581,8 @@ const printShader = {
     uniform float uRoundedDotSize;
     uniform float uRoundedDotScale;
     uniform float uZoomScale;
+    uniform float uPhaseMultiplier;
+    uniform float uFmNegate;
     uniform int uDetailMode;
     uniform vec4 uTrackBoxes[5];
     uniform float uTrackVisibility[5];
@@ -666,17 +696,16 @@ const printShader = {
         : mix(blueNoise, interleavedNoise(ditherPixel), 0.72);
       float ditherInk = step(threshold, tone) * step(0.01, tone);
       if (uDetailMode == 9) {
-        float fmPixel = 1.0;
+        float fmPixel = max(1.0, uDitherPixelSize);
         vec2 fmCell = floor(gl_FragCoord.xy / fmPixel);
-        vec2 localUv = fract(gl_FragCoord.xy / fmPixel);
         vec2 fmUv = (fmCell + 0.5) * fmPixel / uResolution;
         vec3 fmData = texture2D(tFrequencyPhase, fmUv).rgb;
-        float duty = mix(0.99, 0.82, fmData.b);
-        float xMark = step(duty, fract(fmData.r));
-        float yMark = step(0.62, fract(fmCell.y / 3.0));
-        float squareFill = step(0.12, localUv.x) * step(localUv.x, 0.88) *
-          step(0.12, localUv.y) * step(localUv.y, 0.88);
-        ditherInk = xMark * yMark * squareFill * step(0.5, fmData.g);
+        float carrier = fract(fmData.r * max(uPhaseMultiplier, 0.001));
+        float response = smoothstep(0.15, 0.65, fmData.b);
+        float carrierThreshold = mix(0.995, 0.36, response);
+        float mark = step(carrierThreshold, carrier);
+        mark = mix(mark, 1.0 - mark, uFmNegate);
+        ditherInk = mark * step(0.5, fmData.g);
       }
       if (uDetailMode == 6) {
         float crossSize = max(3.0, uDitherPixelSize * 3.0);
@@ -811,6 +840,9 @@ function setDetailMode(mode) {
   frequencyModulationPass.enabled = resolvedMode === "frequency-modulation";
   if (gtaoPass) gtaoPass.enabled = resolvedMode === "gtao";
   if (roundedDotControls) roundedDotControls.hidden = resolvedMode !== "rounded";
+  if (frequencyModulationControls) {
+    frequencyModulationControls.hidden = resolvedMode !== "frequency-modulation";
+  }
   document.body.dataset.detailMode = resolvedMode;
 }
 
@@ -831,6 +863,28 @@ updateRoundedDotSize();
 function updateRoundedDotScale() {
   printPass.uniforms.uRoundedDotScale.value = roundedDotScaleInput?.checked ? 1 : 0;
 }
+
+function updateFrequencyModulationControls() {
+  const omega = Number(fmOmegaInput?.value ?? 1.05);
+  const phase = Number(fmPhaseInput?.value ?? 1.23);
+  const quant = Number(fmQuantInput?.value ?? 49);
+  const useClahe = fmClaheInput ? (fmClaheInput.checked ? 1 : 0) : 1;
+  const negate = fmNegateInput?.checked ? 1 : 0;
+
+  frequencyModulationPass.toneMaterial.uniforms.uOmega.value = omega;
+  frequencyModulationPass.toneMaterial.uniforms.uQuantLevel.value = quant;
+  frequencyModulationPass.toneMaterial.uniforms.uUseClahe.value = useClahe;
+  printPass.uniforms.uPhaseMultiplier.value = phase;
+  printPass.uniforms.uFmNegate.value = negate;
+
+  if (fmOmegaOutput) fmOmegaOutput.value = omega.toFixed(2);
+  if (fmPhaseOutput) fmPhaseOutput.value = phase.toFixed(2);
+  if (fmQuantOutput) fmQuantOutput.value = String(quant);
+}
+
+frequencyModulationControls?.addEventListener("input", updateFrequencyModulationControls);
+frequencyModulationControls?.addEventListener("change", updateFrequencyModulationControls);
+updateFrequencyModulationControls();
 
 roundedDotScaleInput?.addEventListener("change", updateRoundedDotScale);
 updateRoundedDotScale();

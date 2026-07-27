@@ -258,6 +258,16 @@ body {
   max-height: calc(100% - 189px);
 }
 
+.detail-lab[data-detail-mode="frequency-modulation"] .light-controls {
+  top: 360px;
+  max-height: calc(100% - 372px);
+}
+
+.detail-lab[data-detail-mode="rounded"] .light-controls {
+  top: 250px;
+  max-height: calc(100% - 262px);
+}
+
 .light-controls__heading,
 .light-controls label > span {
   display: flex;
