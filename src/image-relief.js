@@ -2092,10 +2092,10 @@ function renderView() {
   drawLiveRegionOverlay();
 }
 
-function gridSubjectCoverage(grid, i, j, stride = 1) {
+function gridSubjectCoverage(grid, i, j, strideU = 1, strideV = strideU) {
   if (!grid?.subject) return 1;
-  const iMax = Math.min(grid.uCount, i + stride);
-  const jMax = Math.min(grid.vCount, j + stride);
+  const iMax = Math.min(grid.uCount, i + strideU);
+  const jMax = Math.min(grid.vCount, j + strideV);
   let hits = 0;
   let total = 0;
   for (let row = j; row < jMax; row += 1) {
@@ -2219,34 +2219,36 @@ function drawRegionOverlay(context, width, height, { clear = true, time } = {}) 
         unprojectUvToWorldZ0(box.x - box.z * 0.5, box.y + box.w * 0.5),
         unprojectUvToWorldZ0(box.x + box.z * 0.5, box.y + box.w * 0.5),
       ].map((corner) => worldToGridCell(fieldGrid, corner.x, corner.y));
-      const iMin = Math.max(0, Math.floor(Math.min(...corners.map((cell) => cell.i))) - stride);
-      const iMax = Math.min(fieldGrid.uCount - 1, Math.ceil(Math.max(...corners.map((cell) => cell.i))) + stride);
-      const jMin = Math.max(0, Math.floor(Math.min(...corners.map((cell) => cell.j))) - stride);
-      const jMax = Math.min(fieldGrid.vCount - 1, Math.ceil(Math.max(...corners.map((cell) => cell.j))) + stride);
-      const iStart = Math.ceil(iMin / stride) * stride;
-      const jStart = Math.ceil(jMin / stride) * stride;
-
       const projectCell = (i, j) => {
         const worldX = fieldGrid.originX + i * fieldGrid.duX + j * fieldGrid.dvX;
         const worldY = fieldGrid.originY + i * fieldGrid.duY + j * fieldGrid.dvY;
         return projectWorldToOverlay(worldX, worldY, 0, width, height);
       };
 
-      for (let j = jStart; j <= jMax; j += stride) {
-        for (let i = iStart; i <= iMax; i += stride) {
-          const coverage = gridSubjectCoverage(fieldGrid, i, j, stride);
+      const sampleU = projectCell(0, 0);
+      const sampleU1 = projectCell(1, 0);
+      const sampleV = projectCell(0, 1);
+      const sampleWidth = Math.hypot(sampleU1.x - sampleU.x, sampleU1.y - sampleU.y);
+      const sampleHeight = Math.hypot(sampleV.x - sampleU.x, sampleV.y - sampleU.y);
+      const strideU = Math.max(stride, Math.ceil(8 / Math.max(sampleWidth, 0.01)));
+      const strideV = Math.max(stride, Math.ceil(12 / Math.max(sampleHeight, 0.01)));
+      const iMin = Math.max(0, Math.floor(Math.min(...corners.map((cell) => cell.i))) - strideU);
+      const iMax = Math.min(fieldGrid.uCount - 1, Math.ceil(Math.max(...corners.map((cell) => cell.i))) + strideU);
+      const jMin = Math.max(0, Math.floor(Math.min(...corners.map((cell) => cell.j))) - strideV);
+      const jMax = Math.min(fieldGrid.vCount - 1, Math.ceil(Math.max(...corners.map((cell) => cell.j))) + strideV);
+      const iStart = Math.ceil(iMin / strideU) * strideU;
+      const jStart = Math.ceil(jMin / strideV) * strideV;
+
+      for (let j = jStart; j <= jMax; j += strideV) {
+        for (let i = iStart; i <= iMax; i += strideU) {
+          const coverage = gridSubjectCoverage(fieldGrid, i, j, strideU, strideV);
           if (coverage <= 0) continue;
 
           const p00 = projectCell(i, j);
-          const p10 = projectCell(i + stride, j);
-          const p01 = projectCell(i, j + stride);
-          const p11 = projectCell(i + stride, j + stride);
-          if (
-            !overlayPointInsideBox(p00, box)
-            || !overlayPointInsideBox(p10, box)
-            || !overlayPointInsideBox(p01, box)
-            || !overlayPointInsideBox(p11, box)
-          ) {
+          const p10 = projectCell(i + strideU, j);
+          const p01 = projectCell(i, j + strideV);
+          const center = projectCell(i + strideU * 0.5, j + strideV * 0.5);
+          if (!overlayPointInsideBox(center, box)) {
             continue;
           }
 
@@ -2254,7 +2256,7 @@ function drawRegionOverlay(context, width, height, { clear = true, time } = {}) 
           const axisU = { x: p10.x - p00.x, y: p10.y - p00.y };
           const axisV = { x: p01.x - p00.x, y: p01.y - p00.y };
           const area = Math.abs(axisU.x * axisV.y - axisU.y * axisV.x);
-          if (area < 18) continue;
+          if (area < 0.5) continue;
 
           context.fillStyle = paper;
           fillParallelogram(context, origin, axisU, axisV);
