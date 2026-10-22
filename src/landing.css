@@ -91,7 +91,7 @@ body.landing-page {
 .hero-specimen__image-wrap { inset: 6% 3% 8%; }
 .hero-specimen__label { justify-content: space-between; }
 .hero-specimen__label span:last-child { margin-left: 0; }
-.manifest-section { padding-top: 72px; padding-bottom: 72px; }
+.manifest-section { padding-top: 72px; padding-bottom: 72px; border-top: 0; }
 .manifest-list { margin-top: 42px; border-top: 1px solid var(--landing-line); }
 .manifest-row { display: grid; grid-template-columns: 34px 52px minmax(170px, .7fr) minmax(260px, 1fr) 20px; gap: 18px; align-items: center; padding: 14px 0; color: inherit; border-bottom: 1px solid var(--landing-line); text-decoration: none; }
 .manifest-row:hover { color: var(--landing-blue); }
