@@ -174,8 +174,8 @@ const MAX_REGIONS = 5;
 const ASCII_SCALE = 3;
 const ASCII_GLYPH_COLUMNS = 4;
 const ASCII_GLYPH_ROWS = 7;
-const ASCII_CELL_WIDTH = 8;
-const ASCII_CELL_HEIGHT = 12;
+const ASCII_CELL_WIDTH = 6;
+const ASCII_CELL_HEIGHT = 9;
 const ASCII_GLYPHS = [
   ["..#.", ".##.", "..#.", "..#.", "..#.", "..#.", ".###"],
   ["####", ".#..", ".#..", ".#..", ".#..", ".#..", ".#.."],
