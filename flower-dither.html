@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A black-and-white dithered rendering of a botanical illustration."
+    />
+    <title>Flower / Black &amp; White Dither</title>
+  </head>
+  <body>
+    <main class="dither-page">
+      <header class="dither-header">
+        <div>
+          <p class="dither-kicker">Botanical study</p>
+          <h1>Black &amp; white dither</h1>
+        </div>
+        <p class="dither-meta" aria-live="polite">
+          <span data-dimensions>—</span>
+          <span>1-bit</span>
+        </p>
+      </header>
+
+      <section class="dither-stage" aria-label="Dithered botanical illustration">
+        <canvas data-dither-canvas></canvas>
+        <p class="dither-loading" data-loading>Processing image…</p>
+      </section>
+
+      <aside class="dither-controls" aria-label="Dither controls">
+        <label>
+          <span>Image</span>
+          <select name="source">
+            <option value="flower-color">Arum study</option>
+            <option value="bird-of-paradise" selected>Bird of paradise</option>
+          </select>
+        </label>
+        <label>
+          <span>Style</span>
+          <select name="style">
+            <option value="pixels">Pixel dither</option>
+            <option value="dots">Dot halftone</option>
+            <option value="glyphs">Dots + 0s</option>
+          </select>
+        </label>
+        <label>
+          <span>Detail <output data-value="detail">1 px</output></span>
+          <input name="detail" type="range" min="1" max="8" step="1" value="1" />
+        </label>
+        <label>
+          <span>Glyph size <output data-value="glyph-size">10 px</output></span>
+          <input name="glyph-size" type="range" min="1" max="24" step="1" value="10" />
+        </label>
+        <label>
+          <span>Contrast <output data-value="contrast">1.10</output></span>
+          <input name="contrast" type="range" min="0.5" max="2.5" step="0.05" value="1.1" />
+        </label>
+        <label>
+          <span>Threshold <output data-value="threshold">50%</output></span>
+          <input name="threshold" type="range" min="0" max="100" step="1" value="50" />
+        </label>
+        <label class="dither-toggle">
+          <span>Invert</span>
+          <input name="invert" type="checkbox" />
+        </label>
+        <label class="dither-toggle">
+          <span>Concentric rings</span>
+          <input name="rings" type="checkbox" checked />
+        </label>
+        <label>
+          <span>Ring spacing <output data-value="ring-spacing">11%</output></span>
+          <input name="ring-spacing" type="range" min="4" max="24" step="1" value="11" />
+        </label>
+        <label>
+          <span>Ring shift <output data-value="ring-shift">8°</output></span>
+          <input name="ring-shift" type="range" min="0" max="30" step="1" value="8" />
+        </label>
+        <label>
+          <span>Center X <output data-value="center-x">50%</output></span>
+          <input name="center-x" type="range" min="0" max="100" step="1" value="50" />
+        </label>
+        <label>
+          <span>Center Y <output data-value="center-y">54%</output></span>
+          <input name="center-y" type="range" min="0" max="100" step="1" value="54" />
+        </label>
+        <label>
+          <span>Image scale <output data-value="image-scale">100%</output></span>
+          <input name="image-scale" type="range" min="25" max="250" step="5" value="100" />
+        </label>
+        <label class="dither-color">
+          <span>Halftone color</span>
+          <input name="ink-color" type="color" value="#ffffff" />
+        </label>
+        <label class="dither-color">
+          <span>Background color</span>
+          <input name="background-color" type="color" value="#000000" />
+        </label>
+        <label>
+          <span>Ring weight <output data-value="ring-weight">2.0 px</output></span>
+          <input name="ring-weight" type="range" min="0.5" max="4" step="0.1" value="2" />
+        </label>
+        <label class="dither-toggle">
+          <span>Transparent background</span>
+          <input name="white-only" type="checkbox" checked />
+        </label>
+        <label>
+          <span>Export resolution</span>
+          <select name="export-scale">
+            <option value="2">2×</option>
+            <option value="3">3×</option>
+            <option value="4" selected>4×</option>
+          </select>
+        </label>
+        <div class="dither-actions">
+          <button type="button" data-reset>Reset</button>
+          <button type="button" class="dither-download" data-download>Download PNG</button>
+        </div>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/flower-dither.js"></script>
+  </body>
+</html>

@@ -5,173 +5,159 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="An interactive dithered and ASCII rendering of biological specimens."
+      content="Specimen Render — an interactive atlas of biological forms, print-style dithering, and exportable 3D studies."
     />
-    <title>Biological Specimens / Field Study 001</title>
+    <title>Specimen Render / AI × Biosecurity</title>
+    <link rel="stylesheet" href="/src/landing.css" />
   </head>
-  <body>
-    <main class="shell">
-      <section class="viewer" aria-label="Interactive 3D biological specimen">
-        <div id="scene" class="scene"></div>
+  <body class="landing-page">
+    <main class="landing-shell">
+      <header class="landing-header">
+        <a class="wordmark" href="/" aria-label="Specimen Render home">
+          <span class="wordmark__mark">SR</span>
+          <span>
+            <span class="wordmark__name">Specimen Render</span>
+            <span class="wordmark__sub">AI × Biosecurity</span>
+          </span>
+        </a>
+        <div class="landing-header__meta">
+          <span>Field study 001</span>
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Live build</span>
+        </div>
+      </header>
 
-        <div id="loading" class="loading" aria-hidden="true">
-          <span class="loading__bar"><span></span></span>
+      <section class="landing-hero" aria-labelledby="hero-title">
+        <div class="landing-hero__copy">
+          <p class="eyebrow">Interactive specimen atlas / 2026</p>
+          <h1 id="hero-title">Make the invisible <em>legible.</em></h1>
+          <p class="landing-hero__lede">
+            A working collection of biological forms rendered as tactile, print-like 3D scenes.
+            Choose a specimen, tune the light, compare the dither, and take the image with you.
+          </p>
+          <div class="landing-actions">
+            <a class="button button--primary" href="/display.html">
+              <span>Open specimen display</span>
+              <span aria-hidden="true">↗</span>
+            </a>
+            <a class="button button--quiet" href="/detail-lab.html">Enter detail lab <span aria-hidden="true">→</span></a>
+          </div>
+          <dl class="hero-stats" aria-label="Project summary">
+            <div><dt>09</dt><dd>specimens</dd></div>
+            <div><dt>10</dt><dd>render modes</dd></div>
+            <div><dt>∞</dt><dd>lighting studies</dd></div>
+          </dl>
         </div>
 
-        <aside class="performance-panel" aria-label="Live 3D performance">
-          <p class="performance-panel__eyebrow">Live render</p>
-          <dl class="performance-panel__metrics">
-            <div>
-              <dt>Triangles</dt>
-              <dd id="metric-triangles">—</dd>
-            </div>
-            <div>
-              <dt>Asset size</dt>
-              <dd id="metric-size">—</dd>
-            </div>
-            <div>
-              <dt>LOD</dt>
-              <dd id="metric-lod">—</dd>
-            </div>
-            <div>
-              <dt>Distance</dt>
-              <dd id="metric-distance">—</dd>
-            </div>
-            <div>
-              <dt>FPS</dt>
-              <dd id="metric-fps">—</dd>
-            </div>
-            <div>
-              <dt>Draw calls</dt>
-              <dd id="metric-draw-calls">—</dd>
-            </div>
-          </dl>
-          <p class="performance-panel__hint">Scroll to test LOD</p>
-        </aside>
-
-        <aside id="light-controls" class="light-controls" aria-label="Lighting controls">
-          <div class="light-controls__heading">
-            <span>Lighting</span>
-            <button type="button" data-reset-lights>Reset</button>
+        <div class="hero-specimen" aria-label="Bacteriophage specimen preview">
+          <div class="hero-specimen__noise" aria-hidden="true"></div>
+          <div class="hero-specimen__image-wrap">
+            <img src="/images/bacteriophage.png" alt="Bacteriophage specimen rendered in blue and white" />
           </div>
-          <label>
-            <span>Key azimuth <output data-light-value="key-azimuth">−166°</output></span>
-            <input name="key-azimuth" type="range" min="-180" max="180" value="-166" />
-          </label>
-          <label>
-            <span>Key elevation <output data-light-value="key-elevation">38°</output></span>
-            <input name="key-elevation" type="range" min="-80" max="80" value="38" />
-          </label>
-          <label>
-            <span>Key strength <output data-light-value="key-intensity">7.2</output></span>
-            <input name="key-intensity" type="range" min="0" max="12" step="0.1" value="7.2" />
-          </label>
-          <label>
-            <span>Rim azimuth <output data-light-value="rim-azimuth">155°</output></span>
-            <input name="rim-azimuth" type="range" min="-180" max="180" value="155" />
-          </label>
-          <label>
-            <span>Rim elevation <output data-light-value="rim-elevation">42°</output></span>
-            <input name="rim-elevation" type="range" min="-80" max="80" value="42" />
-          </label>
-          <label>
-            <span>Rim strength <output data-light-value="rim-intensity">4.8</output></span>
-            <input name="rim-intensity" type="range" min="0" max="12" step="0.1" value="4.8" />
-          </label>
-          <label>
-            <span>Ambient <output data-light-value="ambient-intensity">4.0</output></span>
-            <input name="ambient-intensity" type="range" min="0" max="5" step="0.1" value="4.0" />
-          </label>
-        </aside>
+          <div class="hero-specimen__label">
+            <span class="hero-specimen__index">01 / 09</span>
+            <span>Bacteriophage</span>
+            <span class="hero-specimen__line" aria-hidden="true"></span>
+            <span>OBJ · LOD 0</span>
+          </div>
+          <div class="hero-specimen__crosshair hero-specimen__crosshair--one" aria-hidden="true"></div>
+          <div class="hero-specimen__crosshair hero-specimen__crosshair--two" aria-hidden="true"></div>
+        </div>
       </section>
 
-      <footer class="brand-footer">
-        <div class="brand-footer__copy">
-          <p>AI<span class="brand-separator">×</span>Biosecurity</p>
-          <div
-            id="specimen-options"
-            class="specimen-options"
-            role="group"
-            aria-label="Specimen"
-          >
-            <button
-              type="button"
-              class="specimen-options__button"
-              data-specimen="bacteriophage"
-              aria-pressed="true"
-            >
-              Bacteriophage
-            </button>
-            <button
-              type="button"
-              class="specimen-options__button"
-              data-specimen="hepatitis-c"
-              aria-pressed="false"
-            >
-              Hepatitis C
-            </button>
-            <button
-              type="button"
-              class="specimen-options__button"
-              data-specimen="red-blood-cell"
-              aria-pressed="false"
-            >
-              Red Blood Cell
-            </button>
-            <button
-              type="button"
-              class="specimen-options__button"
-              data-specimen="virus"
-              aria-pressed="false"
-            >
-              Virus
-            </button>
-            <button
-              type="button"
-              class="specimen-options__button"
-              data-specimen="antibody"
-              aria-pressed="false"
-            >
-              Antibody
-            </button>
-            <button
-              type="button"
-              class="specimen-options__button"
-              data-specimen="cell-aggregate"
-              aria-pressed="false"
-            >
-              Cell Aggregate
-            </button>
-            <button
-              type="button"
-              class="specimen-options__button"
-              data-specimen="pebbled-sphere"
-              aria-pressed="false"
-            >
-              Pebbled Sphere
-            </button>
-            <button
-              type="button"
-              class="specimen-options__button"
-              data-specimen="basophil"
-              aria-pressed="false"
-            >
-              Basophil
-            </button>
-            <button
-              type="button"
-              class="specimen-options__button"
-              data-specimen="brain"
-              aria-pressed="false"
-            >
-              Brain
-            </button>
-          </div>
+      <section class="manifest-section" aria-labelledby="manifest-title">
+        <div class="section-heading">
+          <p class="eyebrow">What is active</p>
+          <h2 id="manifest-title">One display, several ways in.</h2>
+          <p>Every page is a different lens on the same question: how much structure can an image hold?</p>
         </div>
-        <span class="brand-logo" role="img" aria-label="AI x Biosecurity logo"></span>
+        <div class="manifest-grid">
+          <article class="manifest-card manifest-card--blue">
+            <div class="manifest-card__topline"><span>01</span><span>3D / realtime</span></div>
+            <div class="manifest-card__icon manifest-card__icon--orbit" aria-hidden="true"><span></span><i></i></div>
+            <h3>Specimen display</h3>
+            <p>Nine OBJ models, orbit controls, automatic LOD, calibrated lighting, and a live render readout.</p>
+            <a href="/display.html">Browse the specimens <span aria-hidden="true">↗</span></a>
+          </article>
+          <article class="manifest-card manifest-card--ink">
+            <div class="manifest-card__topline"><span>02</span><span>Methods / compare</span></div>
+            <div class="manifest-card__icon manifest-card__icon--grid" aria-hidden="true"></div>
+            <h3>Detail lab</h3>
+            <p>Hold the same model and camera still while switching between ten dither and structure passes.</p>
+            <a href="/detail-lab.html">Compare render modes <span aria-hidden="true">↗</span></a>
+          </article>
+          <article class="manifest-card manifest-card--paper">
+            <div class="manifest-card__topline"><span>03</span><span>Output / print</span></div>
+            <div class="manifest-card__icon manifest-card__icon--export" aria-hidden="true"><span>PNG</span></div>
+            <h3>Export studio</h3>
+            <p>Make screenshots, six-foot banner files, detailed renders, and looping 1456 × 773 studies.</p>
+            <a href="/display.html">Make an export <span aria-hidden="true">↗</span></a>
+          </article>
+        </div>
+      </section>
+
+      <section class="explore-section" aria-labelledby="explore-title">
+        <div class="section-heading section-heading--row">
+          <div>
+            <p class="eyebrow">The working index</p>
+            <h2 id="explore-title">Explore the current build.</h2>
+          </div>
+          <p class="section-heading__aside">A small visual system for looking closely — and looking again.</p>
+        </div>
+        <div class="explore-grid">
+          <a class="explore-card explore-card--wide" href="/image-relief.html">
+            <div class="explore-card__visual explore-card__visual--relief">
+              <img src="/images/face.jpg" alt="Textured face image used as a relief study" />
+              <span class="explore-card__stamp">2D → 3D</span>
+            </div>
+            <div class="explore-card__body"><span>Image relief</span><span aria-hidden="true">↗</span></div>
+          </a>
+          <a class="explore-card" href="/flower-dither.html">
+            <div class="explore-card__visual explore-card__visual--flower">
+              <img src="/images/bird-of-paradise.png" alt="Dithered bird of paradise study" />
+              <span class="explore-card__stamp">1-bit</span>
+            </div>
+            <div class="explore-card__body"><span>Botanical dither</span><span aria-hidden="true">↗</span></div>
+          </a>
+          <a class="explore-card" href="/face.html">
+            <div class="explore-card__visual explore-card__visual--face">
+              <img src="/images/conidia.jpg" alt="Conidia image relief study" />
+              <span class="explore-card__stamp">Point field</span>
+            </div>
+            <div class="explore-card__body"><span>Petri relief</span><span aria-hidden="true">↗</span></div>
+          </a>
+        </div>
+      </section>
+
+      <section class="specimen-section" aria-labelledby="specimens-title">
+        <div class="section-heading section-heading--row">
+          <div>
+            <p class="eyebrow">Specimen cabinet</p>
+            <h2 id="specimens-title">Nine forms, one instrument.</h2>
+          </div>
+          <a class="text-link" href="/display.html">Open full display <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="specimen-list">
+          <span><b>01</b> Bacteriophage</span>
+          <span><b>02</b> Hepatitis C</span>
+          <span><b>03</b> Red Blood Cell</span>
+          <span><b>04</b> Virus</span>
+          <span><b>05</b> Antibody</span>
+          <span><b>06</b> Cell Aggregate</span>
+          <span><b>07</b> Pebbled Sphere</span>
+          <span><b>08</b> Basophil</span>
+          <span><b>09</b> Brain</span>
+        </div>
+      </section>
+
+      <footer class="landing-footer">
+        <div>
+          <p class="eyebrow">AI × Biosecurity</p>
+          <p class="landing-footer__note">A visual research instrument for turning biological structure into a field of view.</p>
+        </div>
+        <img src="/brand-logo.png" alt="AI × Biosecurity" />
+        <div class="landing-footer__meta"><span>Specimen Render</span><span>Built with Three.js</span></div>
       </footer>
     </main>
-
-    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

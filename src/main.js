@@ -9,7 +9,7 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import "./style.css";
 
 const COLORS = {
-  beige: new THREE.Color("#faf6ec"),
+  beige: new THREE.Color("#fafafa"),
   blue: new THREE.Color("#0d42f0"),
 };
 
@@ -30,7 +30,30 @@ const fmQuantInput = document.querySelector("#fm-quant");
 const fmQuantOutput = document.querySelector("#fm-quant-value");
 const fmClaheInput = document.querySelector("#fm-clahe");
 const fmNegateInput = document.querySelector("#fm-negate");
+const toggleAnimationButton = document.querySelector("[data-toggle-animation]");
+const drawTrackingButton = document.querySelector("[data-draw-tracking]");
+const clearTrackingButton = document.querySelector("[data-clear-tracking]");
+const trackingHint = document.querySelector("[data-tracking-hint]");
 const lightControls = document.querySelector("#light-controls");
+const exportScreenshotButton = document.querySelector("[data-export-screenshot]");
+const exportBannerButton = document.querySelector("[data-export-banner]");
+const exportDetailedBannerButton = document.querySelector("[data-export-detailed-banner]");
+const exportLoopButton = document.querySelector("[data-export-loop]");
+const transparentScreenshotInput = document.querySelector("[data-transparent-screenshot]");
+const LOOP_EXPORT = {
+  width: 1456,
+  height: 773,
+  fps: 30,
+  duration: 8,
+};
+const BANNER_EXPORT = {
+  dpi: 150,
+  longEdgeInches: 72,
+  maxPixels: 100_000_000,
+  fallbackEdges: [8192, 6144, 4096],
+};
+let isExportingLoop = false;
+let isExportingBanner = false;
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const metrics = {
   triangles: document.querySelector("#metric-triangles"),
@@ -145,6 +168,7 @@ scene.add(camera);
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
+  alpha: true,
   powerPreference: "high-performance",
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -163,7 +187,8 @@ controls.autoRotate = false;
 controls.target.set(0.8, 0, 0);
 const referenceCameraDistance = camera.position.distanceTo(controls.target);
 
-const isRotating = !prefersReducedMotion.matches;
+let animationPaused = prefersReducedMotion.matches;
+let animationTime = 0;
 
 const hemisphereLight = new THREE.HemisphereLight("#f8f1df", "#06205f", 1.35);
 hemisphereLight.position.set(0, 1, 0);
@@ -245,6 +270,132 @@ const trackingBoxes = trackerConfigs.map(() => new THREE.Vector4(-2, -2, 0, 0));
 const trackingVisibility = new Float32Array(trackerConfigs.length);
 const trackingDissolve = new Float32Array(trackerConfigs.length);
 const projectedTrackerPosition = new THREE.Vector3();
+const manualTrackingBoxes = [];
+let manualTrackingEnabled = false;
+let suppressAutomaticTracking = false;
+
+function syncManualTrackingUi() {
+  drawTrackingButton?.setAttribute("aria-pressed", String(manualTrackingEnabled));
+  if (drawTrackingButton) {
+    drawTrackingButton.textContent = manualTrackingEnabled ? "Drawing regions" : "Draw static regions";
+  }
+  if (clearTrackingButton) clearTrackingButton.disabled = manualTrackingBoxes.length === 0;
+  if (trackingHint) {
+    trackingHint.textContent = manualTrackingEnabled
+      ? "Drag over the model. Regions remain fixed in the view and in exports."
+      : manualTrackingBoxes.length
+        ? `${manualTrackingBoxes.length} static region${manualTrackingBoxes.length === 1 ? "" : "s"} active.`
+        : "Enable drawing, then drag up to five regions over the model.";
+  }
+}
+
+function setupManualTracking() {
+  if (!drawTrackingButton) return;
+
+  const layer = document.createElement("div");
+  layer.className = "tracking-draw-layer";
+  layer.setAttribute("aria-hidden", "true");
+  sceneElement.append(layer);
+  let drag = null;
+
+  const pointInLayer = (event) => {
+    const bounds = layer.getBoundingClientRect();
+    return {
+      x: THREE.MathUtils.clamp(event.clientX - bounds.left, 0, bounds.width),
+      y: THREE.MathUtils.clamp(event.clientY - bounds.top, 0, bounds.height),
+      width: bounds.width,
+      height: bounds.height,
+    };
+  };
+
+  const updatePreview = (point) => {
+    if (!drag) return;
+    const left = Math.min(drag.start.x, point.x);
+    const top = Math.min(drag.start.y, point.y);
+    const width = Math.abs(point.x - drag.start.x);
+    const height = Math.abs(point.y - drag.start.y);
+    Object.assign(drag.preview.style, {
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${width}px`,
+      height: `${height}px`,
+    });
+  };
+
+  layer.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const start = pointInLayer(event);
+    const preview = document.createElement("div");
+    preview.className = "tracking-draw-preview";
+    layer.append(preview);
+    drag = { pointerId: event.pointerId, start, preview };
+    layer.setPointerCapture(event.pointerId);
+    updatePreview(start);
+  });
+
+  layer.addEventListener("pointermove", (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    updatePreview(pointInLayer(event));
+  });
+
+  const finishDrag = (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const end = pointInLayer(event);
+    const left = Math.min(drag.start.x, end.x);
+    const top = Math.min(drag.start.y, end.y);
+    const width = Math.abs(end.x - drag.start.x);
+    const height = Math.abs(end.y - drag.start.y);
+    drag.preview.remove();
+    drag = null;
+    if (width < 8 || height < 8 || end.width <= 0 || end.height <= 0) return;
+
+    if (manualTrackingBoxes.length === trackerConfigs.length) manualTrackingBoxes.shift();
+    manualTrackingBoxes.push(new THREE.Vector4(
+      (left + width * 0.5) / end.width,
+      1 - (top + height * 0.5) / end.height,
+      width / end.width,
+      height / end.height,
+    ));
+    syncManualTrackingUi();
+    updateTrackingBoxes(animationTime);
+  };
+
+  layer.addEventListener("pointerup", finishDrag);
+  layer.addEventListener("pointercancel", finishDrag);
+
+  drawTrackingButton.addEventListener("click", () => {
+    manualTrackingEnabled = !manualTrackingEnabled;
+    layer.classList.toggle("is-active", manualTrackingEnabled);
+    controls.enabled = !manualTrackingEnabled;
+    syncManualTrackingUi();
+    updateTrackingBoxes(animationTime);
+  });
+
+  clearTrackingButton?.addEventListener("click", () => {
+    manualTrackingBoxes.length = 0;
+    syncManualTrackingUi();
+    updateTrackingBoxes(animationTime);
+  });
+
+  syncManualTrackingUi();
+}
+
+function setupAnimationToggle() {
+  if (!toggleAnimationButton) return;
+
+  const sync = () => {
+    toggleAnimationButton.setAttribute("aria-pressed", String(animationPaused));
+    toggleAnimationButton.textContent = animationPaused ? "Resume animation" : "Pause animation";
+  };
+
+  toggleAnimationButton.addEventListener("click", () => {
+    animationPaused = !animationPaused;
+    sync();
+  });
+
+  sync();
+}
 
 const material = new THREE.MeshStandardMaterial({
   color: COLORS.blue,
@@ -462,10 +613,10 @@ class HorizontalPhasePass extends Pass {
 const frequencyModulationPass = new HorizontalPhasePass(COLORS.beige);
 frequencyModulationPass.enabled = false;
 
-function createGlyphAtlas() {
+function createGlyphAtlas(scale = 4) {
   const characters = "1TCA0G";
-  const cellWidth = 32;
-  const cellHeight = 48;
+  const cellWidth = 32 * scale;
+  const cellHeight = 48 * scale;
   const canvas = document.createElement("canvas");
   canvas.width = cellWidth * characters.length;
   canvas.height = cellHeight;
@@ -473,7 +624,7 @@ function createGlyphAtlas() {
   const context = canvas.getContext("2d");
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "#ffffff";
-  context.font = "500 35px 'DM Mono', monospace";
+  context.font = `600 ${35 * scale}px 'DM Mono', monospace`;
   context.textAlign = "center";
   context.textBaseline = "middle";
 
@@ -541,7 +692,8 @@ const printShader = {
     tNormal: { value: normalTarget.texture },
     tFrequencyPhase: { value: frequencyModulationPass.targets[0].texture },
     uResolution: { value: new THREE.Vector2(1, 1) },
-    uCellSize: { value: new THREE.Vector2(9, 14) },
+    uGlyphCellSize: { value: new THREE.Vector2(9, 14) },
+    uOverlayScale: { value: 1 },
     uDitherPixelSize: { value: 1.38 },
     uTime: { value: 0 },
     uTrackBoxes: { value: trackingBoxes },
@@ -556,6 +708,7 @@ const printShader = {
     uZoomScale: { value: 1 },
     uPhaseMultiplier: { value: Number(fmPhaseInput?.value ?? 1.23) },
     uFmNegate: { value: fmNegateInput?.checked ? 1 : 0 },
+    uTransparentBackground: { value: 0 },
     uBackground: { value: COLORS.beige },
     uBlue: { value: COLORS.blue },
   },
@@ -575,7 +728,8 @@ const printShader = {
     uniform sampler2D uBlueNoise;
     uniform sampler2D uBlueNoiseLarge;
     uniform vec2 uResolution;
-    uniform vec2 uCellSize;
+    uniform vec2 uGlyphCellSize;
+    uniform float uOverlayScale;
     uniform float uDitherPixelSize;
     uniform float uTime;
     uniform float uRoundedDotSize;
@@ -583,6 +737,7 @@ const printShader = {
     uniform float uZoomScale;
     uniform float uPhaseMultiplier;
     uniform float uFmNegate;
+    uniform float uTransparentBackground;
     uniform int uDetailMode;
     uniform vec4 uTrackBoxes[5];
     uniform float uTrackVisibility[5];
@@ -753,20 +908,20 @@ const printShader = {
         tone = roundedTone;
       }
 
-      vec2 cell = floor(gl_FragCoord.xy / uCellSize);
-      vec2 centerPixel = (cell + 0.5) * uCellSize;
+      vec2 cell = floor(gl_FragCoord.xy / uGlyphCellSize);
+      vec2 centerPixel = (cell + 0.5) * uGlyphCellSize;
       vec2 centerUv = centerPixel / uResolution;
       vec3 cellColor = texture2D(tDiffuse, centerUv).rgb;
       float cellMask = objectMask(cellColor);
       float brightness = clamp(sourceLevel(cellColor) * 1.16, 0.0, 1.0);
-      vec2 cellStep = uCellSize / uResolution;
+      vec2 cellStep = uGlyphCellSize / uResolution;
       float horizontalMask = objectMask(texture2D(tDiffuse, centerUv + vec2(cellStep.x, 0.0)).rgb);
       float verticalMask = objectMask(texture2D(tDiffuse, centerUv + vec2(0.0, cellStep.y)).rgb);
       float edge = max(abs(cellMask - horizontalMask), abs(cellMask - verticalMask));
       float dissolveThreshold = texture2D(uBlueNoise, (cell + 0.5) / 16.0).r;
       float density = clamp((1.0 - brightness) * 0.9 + edge * 0.85, 0.0, 1.0);
       float glyphIndex = floor(clamp(density * 5.99 + (dissolveThreshold - 0.5) * 0.65, 0.0, 5.0));
-      vec2 localUv = fract(gl_FragCoord.xy / uCellSize);
+      vec2 localUv = fract(gl_FragCoord.xy / uGlyphCellSize);
       float glyphScale = mix(0.9, 1.28, brightness);
       glyphScale = mix(glyphScale, 0.88, edge);
       vec2 glyphUv = (localUv - 0.5) * glyphScale + 0.5;
@@ -779,7 +934,7 @@ const printShader = {
       vec2 screenUv = gl_FragCoord.xy / uResolution;
       float trackingBorder = 0.0;
       float trackingAscii = 0.0;
-      vec2 borderWidth = vec2(4.0) / uResolution;
+      vec2 borderWidth = vec2(4.0 * uOverlayScale) / uResolution;
 
       for (int index = 0; index < 5; index++) {
         vec4 box = uTrackBoxes[index];
@@ -824,7 +979,12 @@ const printShader = {
       phosphor = max(phosphor, trackingBorder * scanline * 0.92);
       phosphor *= mix(0.72, 1.0, vignette);
       vec3 finalColor = mix(uBackground, uBlue, phosphor);
-      gl_FragColor = vec4(linearToSrgb(finalColor), 1.0);
+      vec3 transparentColor = linearToSrgb(uBlue);
+      gl_FragColor = mix(
+        vec4(linearToSrgb(finalColor), 1.0),
+        vec4(transparentColor, phosphor),
+        uTransparentBackground
+      );
     }
   `,
 };
@@ -833,6 +993,454 @@ const printPass = new ShaderPass(printShader);
 frequencyModulationPass.setOutputUniform(printPass.uniforms.tFrequencyPhase);
 composer.addPass(frequencyModulationPass);
 composer.addPass(printPass);
+
+function exportScreenshot() {
+  const transparent = transparentScreenshotInput?.checked ?? false;
+  let href;
+
+  printPass.uniforms.uTransparentBackground.value = transparent ? 1 : 0;
+  try {
+    composer.render();
+    href = renderer.domElement.toDataURL("image/png");
+  } finally {
+    printPass.uniforms.uTransparentBackground.value = 0;
+    if (transparent) composer.render();
+  }
+
+  const activeButton = specimenOptions?.querySelector('[aria-pressed="true"]');
+  const specimenId = activeButton?.dataset.specimen ?? "specimen";
+  const modeSuffix = detailModeSelect?.value ? `-${detailModeSelect.value}` : "";
+  const backgroundSuffix = transparent ? "-transparent" : "";
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const download = document.createElement("a");
+  download.download = `${specimenId}${modeSuffix}${backgroundSuffix}-${timestamp}.png`;
+  download.href = href;
+  download.click();
+}
+
+exportScreenshotButton?.addEventListener("click", exportScreenshot);
+
+function canvasToPngBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Could not encode PNG."));
+    }, "image/png");
+  });
+}
+
+function bannerExportFilename(width, height, kind = "banner") {
+  const activeButton = specimenOptions?.querySelector('[aria-pressed="true"]');
+  const specimenId = activeButton?.dataset.specimen ?? "specimen";
+  const modeSuffix = detailModeSelect?.value ? `-${detailModeSelect.value}` : "";
+  const transparent = transparentScreenshotInput?.checked ?? false;
+  const backgroundSuffix = transparent ? "-transparent" : "";
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `${specimenId}${modeSuffix}${backgroundSuffix}-${kind}-${width}x${height}-${BANNER_EXPORT.dpi}dpi-${timestamp}.png`;
+}
+
+function bannerSizeCandidates() {
+  const sourceWidth = Math.max(1, renderer.domElement.width);
+  const sourceHeight = Math.max(1, renderer.domElement.height);
+  const longSource = Math.max(sourceWidth, sourceHeight);
+  const targetLong = BANNER_EXPORT.longEdgeInches * BANNER_EXPORT.dpi;
+  const candidates = [];
+  for (const edge of [targetLong, ...BANNER_EXPORT.fallbackEdges]) {
+    let scale = Math.floor(edge / longSource);
+    while (scale >= 2 && sourceWidth * scale * sourceHeight * scale > BANNER_EXPORT.maxPixels) {
+      scale -= 1;
+    }
+    if (scale < 2) continue;
+    const width = sourceWidth * scale;
+    const height = sourceHeight * scale;
+    if (!candidates.some((candidate) => candidate.width === width && candidate.height === height)) {
+      candidates.push({ width, height });
+    }
+  }
+  return candidates;
+}
+
+function createBannerCanvas(width, height, transparent) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  if (canvas.width !== width || canvas.height !== height) return null;
+  const context = canvas.getContext("2d", {
+    alpha: transparent,
+    colorSpace: "srgb",
+  });
+  if (!context) return null;
+  context.imageSmoothingEnabled = false;
+  return { canvas, context };
+}
+
+function detailedBannerSizeCandidates() {
+  const viewWidth = Math.max(1, sceneElement.clientWidth);
+  const viewHeight = Math.max(1, sceneElement.clientHeight);
+  const aspect = viewWidth / viewHeight;
+  const gl = renderer.getContext();
+  const textureLimit = renderer.capabilities.maxTextureSize;
+  let gpuLimit = textureLimit;
+  try {
+    const renderbufferLimit = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) || textureLimit;
+    const viewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+    const viewportLimit = viewport ? Math.min(viewport[0], viewport[1]) : textureLimit;
+    gpuLimit = Math.min(textureLimit, renderbufferLimit, viewportLimit, 16384);
+  } catch {
+    gpuLimit = Math.min(textureLimit, 8192);
+  }
+
+  const candidates = [];
+  for (const requestedEdge of [
+    BANNER_EXPORT.longEdgeInches * BANNER_EXPORT.dpi,
+    ...BANNER_EXPORT.fallbackEdges,
+  ]) {
+    let longEdge = Math.min(requestedEdge, gpuLimit);
+    let width = aspect >= 1 ? longEdge : longEdge * aspect;
+    let height = aspect >= 1 ? longEdge / aspect : longEdge;
+    const pixels = width * height;
+    if (pixels > BANNER_EXPORT.maxPixels) {
+      const fit = Math.sqrt(BANNER_EXPORT.maxPixels / pixels);
+      width *= fit;
+      height *= fit;
+    }
+    width = Math.max(2, Math.round(width / 2) * 2);
+    height = Math.max(2, Math.round(height / 2) * 2);
+    if (!candidates.some((candidate) => candidate.width === width && candidate.height === height)) {
+      candidates.push({ width, height });
+    }
+  }
+  return { candidates, viewWidth };
+}
+
+function renderCurrentFrame(width = sceneElement.clientWidth, height = sceneElement.clientHeight) {
+  const cameraDistance = camera.position.distanceTo(controls.target);
+  printPass.uniforms.uZoomScale.value = THREE.MathUtils.clamp(
+    referenceCameraDistance / cameraDistance,
+    referenceCameraDistance / controls.maxDistance,
+    referenceCameraDistance / controls.minDistance,
+  );
+  updateTrackingBoxes(printPass.uniforms.uTime.value, width, height);
+  scene.overrideMaterial = normalMaterial;
+  renderer.setRenderTarget(normalTarget);
+  renderer.clear();
+  renderer.render(scene, camera);
+  scene.overrideMaterial = null;
+  renderer.setRenderTarget(null);
+  composer.render();
+}
+
+async function exportBanner() {
+  if (!exportBannerButton || exportBannerButton.disabled) return;
+
+  const transparent = transparentScreenshotInput?.checked ?? false;
+  const previousTransparent = printPass.uniforms.uTransparentBackground.value;
+  const label = exportBannerButton.textContent;
+
+  isExportingBanner = true;
+  exportBannerButton.disabled = true;
+  if (exportDetailedBannerButton) exportDetailedBannerButton.disabled = true;
+  exportScreenshotButton && (exportScreenshotButton.disabled = true);
+  exportLoopButton && (exportLoopButton.disabled = true);
+  exportBannerButton.textContent = "Exporting…";
+  renderer.setAnimationLoop(null);
+  await new Promise((resolve) => requestAnimationFrame(() => window.setTimeout(resolve, 0)));
+
+  try {
+    printPass.uniforms.uTransparentBackground.value = transparent ? 1 : 0;
+    renderCurrentFrame();
+
+    let chosen = null;
+    let blob = null;
+    for (const candidate of bannerSizeCandidates()) {
+      try {
+        const surface = createBannerCanvas(candidate.width, candidate.height, transparent);
+        if (!surface) continue;
+        surface.context.drawImage(renderer.domElement, 0, 0, candidate.width, candidate.height);
+        chosen = { ...candidate, ...surface };
+        exportBannerButton.textContent = `Exporting ${chosen.width}×${chosen.height}`;
+        blob = await canvasToPngBlob(chosen.canvas);
+        break;
+      } catch {
+        if (chosen) {
+          chosen.canvas.width = 0;
+          chosen.canvas.height = 0;
+          chosen = null;
+        }
+        // Try the next smaller banner canvas.
+      }
+    }
+
+    if (!chosen || !blob) throw new Error("Could not allocate a banner-size canvas.");
+
+    downloadBlob(blob, bannerExportFilename(chosen.width, chosen.height));
+  } catch (error) {
+    console.error(error);
+    window.alert("Banner PNG export failed. Try closing other tabs and retry.");
+  } finally {
+    printPass.uniforms.uTransparentBackground.value = previousTransparent;
+    isExportingBanner = false;
+    renderCurrentFrame();
+    exportBannerButton.disabled = false;
+    if (exportDetailedBannerButton) exportDetailedBannerButton.disabled = false;
+    if (exportScreenshotButton) exportScreenshotButton.disabled = false;
+    if (exportLoopButton) exportLoopButton.disabled = false;
+    exportBannerButton.textContent = label;
+    renderer.setAnimationLoop(animate);
+  }
+}
+
+exportBannerButton?.addEventListener("click", () => {
+  exportBanner();
+});
+
+async function exportDetailedBanner() {
+  if (!exportDetailedBannerButton || exportDetailedBannerButton.disabled) return;
+
+  const transparent = transparentScreenshotInput?.checked ?? false;
+  const previousPixelRatio = renderer.getPixelRatio();
+  const previousTransparent = printPass.uniforms.uTransparentBackground.value;
+  const previousLodAutoUpdate = activeLod?.autoUpdate;
+  const previousSuppressAutomaticTracking = suppressAutomaticTracking;
+  const label = exportDetailedBannerButton.textContent;
+
+  isExportingBanner = true;
+  exportDetailedBannerButton.disabled = true;
+  if (exportBannerButton) exportBannerButton.disabled = true;
+  if (exportScreenshotButton) exportScreenshotButton.disabled = true;
+  if (exportLoopButton) exportLoopButton.disabled = true;
+  exportDetailedBannerButton.textContent = "Rendering…";
+  renderer.setAnimationLoop(null);
+  await new Promise((resolve) => requestAnimationFrame(() => window.setTimeout(resolve, 0)));
+
+  try {
+    suppressAutomaticTracking = true;
+    if (activeLod) {
+      activeLod.autoUpdate = false;
+      activeLod.levels.forEach((level, index) => {
+        level.object.visible = index === 0;
+      });
+    }
+
+    const { candidates, viewWidth } = detailedBannerSizeCandidates();
+    let chosen = null;
+    let blob = null;
+    for (const candidate of candidates) {
+      try {
+        const detailScale = Math.max(1, candidate.width / viewWidth / 3);
+        const exportScale = candidate.width / viewWidth;
+        const overlayScale = exportScale / Math.max(previousPixelRatio, 1);
+        setRenderSize(
+          candidate.width,
+          candidate.height,
+          1,
+          false,
+          detailScale,
+          exportScale,
+          overlayScale,
+        );
+        const bufferWidth = renderer.getContext().drawingBufferWidth;
+        const bufferHeight = renderer.getContext().drawingBufferHeight;
+        if (bufferWidth !== candidate.width || bufferHeight !== candidate.height) continue;
+
+        exportDetailedBannerButton.textContent = `Rendering ${bufferWidth}×${bufferHeight}`;
+        printPass.uniforms.uTransparentBackground.value = transparent ? 1 : 0;
+        renderCurrentFrame(sceneElement.clientWidth, sceneElement.clientHeight);
+        blob = await canvasToPngBlob(renderer.domElement);
+        chosen = { width: bufferWidth, height: bufferHeight };
+        break;
+      } catch {
+        // Try the next smaller high-detail render.
+      }
+    }
+
+    if (!chosen || !blob) throw new Error("Could not render a detailed banner.");
+    downloadBlob(blob, bannerExportFilename(chosen.width, chosen.height, "detailed-banner"));
+  } catch (error) {
+    console.error(error);
+    window.alert("Detailed banner export failed. Try closing other tabs and retry.");
+  } finally {
+    printPass.uniforms.uTransparentBackground.value = previousTransparent;
+    suppressAutomaticTracking = previousSuppressAutomaticTracking;
+    renderer.setPixelRatio(previousPixelRatio);
+    if (activeLod) {
+      activeLod.autoUpdate = previousLodAutoUpdate ?? true;
+      activeLod.update(camera);
+    }
+    isExportingBanner = false;
+    updateSize();
+    exportDetailedBannerButton.disabled = false;
+    if (exportBannerButton) exportBannerButton.disabled = false;
+    if (exportScreenshotButton) exportScreenshotButton.disabled = false;
+    if (exportLoopButton) exportLoopButton.disabled = false;
+    exportDetailedBannerButton.textContent = label;
+    renderer.setAnimationLoop(animate);
+  }
+}
+
+exportDetailedBannerButton?.addEventListener("click", () => {
+  exportDetailedBanner();
+});
+
+function getLoopExportMimeType() {
+  const types = [
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+    "video/mp4;codecs=avc1.42E01E",
+    "video/mp4",
+  ];
+  return types.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+}
+
+function downloadBlob(blob, filename) {
+  const href = URL.createObjectURL(blob);
+  const download = document.createElement("a");
+  download.download = filename;
+  download.href = href;
+  download.click();
+  window.setTimeout(() => URL.revokeObjectURL(href), 1500);
+}
+
+function waitForAnimationFrame() {
+  return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+function renderExportFrame(time) {
+  printPass.uniforms.uTime.value = time;
+  updateTrackingBoxes(time, LOOP_EXPORT.width, LOOP_EXPORT.height);
+  const cameraDistance = camera.position.distanceTo(controls.target);
+  printPass.uniforms.uZoomScale.value = THREE.MathUtils.clamp(
+    referenceCameraDistance / cameraDistance,
+    referenceCameraDistance / controls.maxDistance,
+    referenceCameraDistance / controls.minDistance,
+  );
+  scene.overrideMaterial = normalMaterial;
+  renderer.setRenderTarget(normalTarget);
+  renderer.clear();
+  renderer.render(scene, camera);
+  scene.overrideMaterial = null;
+  renderer.setRenderTarget(null);
+  composer.render();
+}
+
+async function exportRotationLoop() {
+  if (!exportLoopButton || exportLoopButton.disabled) return;
+  if (typeof MediaRecorder === "undefined" || typeof renderer.domElement.captureStream !== "function") {
+    window.alert("Looping video export is not supported in this browser.");
+    return;
+  }
+
+  const mimeType = getLoopExportMimeType();
+  if (!mimeType) {
+    window.alert("This browser cannot record a looping video.");
+    return;
+  }
+
+  const transparent = transparentScreenshotInput?.checked ?? false;
+  const previousPixelRatio = renderer.getPixelRatio();
+  const previousCameraPosition = camera.position.clone();
+  const previousTarget = controls.target.clone();
+  const previousRotation = specimen.rotation.y;
+  const previousTime = printPass.uniforms.uTime.value;
+  const previousTransparent = printPass.uniforms.uTransparentBackground.value;
+  const previousTrackingBoxes = trackingBoxes.map((box) => box.clone());
+  const previousTrackingVisibility = trackingVisibility.slice();
+  const previousTrackingDissolve = trackingDissolve.slice();
+  const previousDamping = controls.enableDamping;
+  const frameCount = LOOP_EXPORT.fps * LOOP_EXPORT.duration;
+  const extension = mimeType.includes("mp4") ? "mp4" : "webm";
+
+  isExportingLoop = true;
+  exportLoopButton.disabled = true;
+  if (exportBannerButton) exportBannerButton.disabled = true;
+  if (exportDetailedBannerButton) exportDetailedBannerButton.disabled = true;
+  if (exportScreenshotButton) exportScreenshotButton.disabled = true;
+  exportLoopButton.textContent = "Exporting 0%";
+  renderer.setAnimationLoop(null);
+
+  try {
+    setRenderSize(LOOP_EXPORT.width, LOOP_EXPORT.height, 1, false);
+    const viewOffset = previousCameraPosition.clone().sub(previousTarget);
+    controls.enableDamping = false;
+    controls.target.copy(specimen.position);
+    camera.position.copy(specimen.position).add(viewOffset);
+    controls.update();
+    printPass.uniforms.uTransparentBackground.value = transparent ? 1 : 0;
+
+    const stream = renderer.domElement.captureStream(LOOP_EXPORT.fps);
+    const recorder = new MediaRecorder(stream, {
+      mimeType,
+      videoBitsPerSecond: 12_000_000,
+    });
+    const chunks = [];
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    });
+    const stopped = new Promise((resolve, reject) => {
+      recorder.addEventListener("stop", resolve, { once: true });
+      recorder.addEventListener("error", () => reject(new Error("Loop export failed.")), { once: true });
+    });
+
+    recorder.start();
+    const frameDuration = 1000 / LOOP_EXPORT.fps;
+    const startedAt = performance.now();
+
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      specimen.rotation.y = previousRotation + (frame / frameCount) * Math.PI * 2;
+      renderExportFrame(previousTime + frame / LOOP_EXPORT.fps);
+      exportLoopButton.textContent = `Exporting ${Math.round(((frame + 1) / frameCount) * 100)}%`;
+      const wait = startedAt + (frame + 1) * frameDuration - performance.now();
+      if (wait > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, wait));
+      } else {
+        await waitForAnimationFrame();
+      }
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, frameDuration * 2));
+    recorder.stop();
+    await stopped;
+    stream.getTracks().forEach((mediaTrack) => mediaTrack.stop());
+
+    const activeButton = specimenOptions?.querySelector('[aria-pressed="true"]');
+    const specimenId = activeButton?.dataset.specimen ?? "specimen";
+    const modeSuffix = detailModeSelect?.value ? `-${detailModeSelect.value}` : "";
+    const backgroundSuffix = transparent ? "-transparent" : "";
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    downloadBlob(
+      new Blob(chunks, { type: mimeType }),
+      `${specimenId}${modeSuffix}${backgroundSuffix}-loop-${LOOP_EXPORT.width}x${LOOP_EXPORT.height}-${timestamp}.${extension}`,
+    );
+  } catch (error) {
+    console.error(error);
+    window.alert("Loop export failed.");
+  } finally {
+    printPass.uniforms.uTime.value = previousTime;
+    printPass.uniforms.uTransparentBackground.value = previousTransparent;
+    specimen.rotation.y = previousRotation;
+    camera.position.copy(previousCameraPosition);
+    controls.target.copy(previousTarget);
+    controls.enableDamping = previousDamping;
+    controls.update();
+    trackingBoxes.forEach((box, index) => box.copy(previousTrackingBoxes[index]));
+    trackingVisibility.set(previousTrackingVisibility);
+    trackingDissolve.set(previousTrackingDissolve);
+    renderer.setPixelRatio(previousPixelRatio);
+    isExportingLoop = false;
+    updateSize();
+    exportLoopButton.disabled = false;
+    if (exportBannerButton) exportBannerButton.disabled = false;
+    if (exportDetailedBannerButton) exportDetailedBannerButton.disabled = false;
+    if (exportScreenshotButton) exportScreenshotButton.disabled = false;
+    exportLoopButton.textContent = "Export loop";
+    renderer.setAnimationLoop(animate);
+  }
+}
+
+exportLoopButton?.addEventListener("click", () => {
+  exportRotationLoop();
+});
 
 function setDetailMode(mode) {
   const resolvedMode = Object.hasOwn(DETAIL_MODES, mode) ? mode : "normal";
@@ -1358,20 +1966,41 @@ specimenOptions?.addEventListener("click", (event) => {
 
 loadSpecimen("bacteriophage");
 
-function updateSize() {
-  const width = sceneElement.clientWidth;
-  const height = sceneElement.clientHeight;
-  const pixelRatio = renderer.getPixelRatio();
-
+function setRenderSize(
+  width,
+  height,
+  pixelRatio,
+  updateStyle = true,
+  patternScale = pixelRatio,
+  glyphScale = patternScale,
+  overlayScale = 1,
+) {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.setSize(width, height);
+  renderer.setPixelRatio(pixelRatio);
+  renderer.setSize(width, height, updateStyle);
+  if (typeof composer.setPixelRatio === "function") {
+    composer.setPixelRatio(pixelRatio);
+  }
   composer.setSize(width, height);
-  normalTarget.setSize(width * pixelRatio, height * pixelRatio);
-  frequencyModulationPass.setSize(width * pixelRatio, height * pixelRatio);
-  printPass.uniforms.uResolution.value.set(width * pixelRatio, height * pixelRatio);
-  printPass.uniforms.uCellSize.value.set(5 * pixelRatio, 7 * pixelRatio);
-  printPass.uniforms.uDitherPixelSize.value = pixelRatio;
+  gtaoPass?.setSize(width, height);
+  const resWidth = width * pixelRatio;
+  const resHeight = height * pixelRatio;
+  normalTarget.setSize(resWidth, resHeight);
+  frequencyModulationPass.setSize(resWidth, resHeight);
+  printPass.uniforms.uResolution.value.set(resWidth, resHeight);
+  printPass.uniforms.uGlyphCellSize.value.set(5 * glyphScale, 7 * glyphScale);
+  printPass.uniforms.uOverlayScale.value = overlayScale;
+  printPass.uniforms.uDitherPixelSize.value = patternScale;
+}
+
+function updateSize() {
+  if (isExportingLoop || isExportingBanner) return;
+  setRenderSize(
+    sceneElement.clientWidth,
+    sceneElement.clientHeight,
+    Math.min(window.devicePixelRatio, 2),
+  );
 }
 
 const resizeObserver = new ResizeObserver(updateSize);
@@ -1379,6 +2008,8 @@ resizeObserver.observe(sceneElement);
 updateSize();
 
 const clock = new THREE.Clock();
+setupManualTracking();
+setupAnimationToggle();
 const triangleFormatter = new Intl.NumberFormat("en-US");
 const lodWorldPosition = new THREE.Vector3();
 const cameraWorldPosition = new THREE.Vector3();
@@ -1445,9 +2076,32 @@ function getTrackerDissolve(config, time) {
   return 1;
 }
 
-function updateTrackingBoxes(time) {
-  const width = sceneElement.clientWidth;
-  const height = sceneElement.clientHeight;
+function updateTrackingBoxes(time, width = sceneElement.clientWidth, height = sceneElement.clientHeight) {
+  if (manualTrackingEnabled || manualTrackingBoxes.length > 0) {
+    trackingBoxes.forEach((box, index) => {
+      const manualBox = manualTrackingBoxes[index];
+      if (manualBox) {
+        box.copy(manualBox);
+        trackingVisibility[index] = 1;
+        trackingDissolve[index] = 0;
+      } else {
+        box.set(-2, -2, 0, 0);
+        trackingVisibility[index] = 0;
+        trackingDissolve[index] = 1;
+      }
+    });
+    return;
+  }
+
+  if (suppressAutomaticTracking) {
+    trackingBoxes.forEach((box, index) => {
+      box.set(-2, -2, 0, 0);
+      trackingVisibility[index] = 0;
+      trackingDissolve[index] = 1;
+    });
+    return;
+  }
+
   const animationTime = time * 0.72;
 
   trackerConfigs.forEach((config, index) => {
@@ -1483,8 +2137,9 @@ function updateTrackingBoxes(time) {
 
 function animate() {
   const delta = Math.min(clock.getDelta(), 0.05);
-  printPass.uniforms.uTime.value = clock.elapsedTime;
-  if (isRotating) specimen.rotation.y += delta * 0.42;
+  if (!animationPaused) animationTime += delta;
+  printPass.uniforms.uTime.value = animationTime;
+  if (!animationPaused) specimen.rotation.y += delta * 0.42;
   controls.update();
   const cameraDistance = camera.position.distanceTo(controls.target);
   printPass.uniforms.uZoomScale.value = THREE.MathUtils.clamp(
@@ -1492,7 +2147,7 @@ function animate() {
     referenceCameraDistance / controls.maxDistance,
     referenceCameraDistance / controls.minDistance,
   );
-  updateTrackingBoxes(clock.elapsedTime);
+  updateTrackingBoxes(animationTime);
   scene.overrideMaterial = normalMaterial;
   renderer.setRenderTarget(normalTarget);
   renderer.clear();

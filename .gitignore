@@ -4,3 +4,4 @@ dist/
 .mesh-tools/
 .DS_Store
 *.log
+.tmp-*

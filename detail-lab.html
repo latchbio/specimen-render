@@ -45,6 +45,12 @@
             <option value="blue-noise">64×64 blue noise</option>
             <option value="normal" selected>Normal / curvature</option>
           </select>
+          <div class="detail-lab-panel__annotations">
+            <button type="button" data-toggle-animation aria-pressed="false">Pause animation</button>
+            <button type="button" data-draw-tracking aria-pressed="false">Draw static regions</button>
+            <button type="button" data-clear-tracking disabled>Clear regions</button>
+          </div>
+          <p data-tracking-hint>Enable drawing, then drag up to five regions over the model.</p>
           <div id="rounded-dot-controls" class="detail-lab-panel__rounded" hidden>
             <label class="detail-lab-panel__range" for="rounded-dot-size">
               <span>
@@ -95,8 +101,18 @@
         <aside id="light-controls" class="light-controls" aria-label="Lighting controls">
           <div class="light-controls__heading">
             <span>Lighting</span>
-            <button type="button" data-reset-lights>Reset</button>
+            <div class="light-controls__actions">
+              <button type="button" data-export-screenshot>Export PNG</button>
+              <button type="button" data-export-banner title="Print-ready PNG, about 6 ft at 150 DPI">Export banner</button>
+              <button type="button" data-export-detailed-banner title="High-detail print render at up to 10K">Detailed banner</button>
+              <button type="button" data-export-loop title="1456×773 looping rotation">Export loop</button>
+              <button type="button" data-reset-lights>Reset</button>
+            </div>
           </div>
+          <label class="light-controls__toggle">
+            <span>Transparent export</span>
+            <input type="checkbox" data-transparent-screenshot />
+          </label>
           <label>
             <span>Key azimuth <output data-light-value="key-azimuth">−166°</output></span>
             <input name="key-azimuth" type="range" min="-180" max="180" value="-166" />

@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en" class="image-relief-page" data-relief-image="face">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Petri dish relief with the current HalftoneSplat sampling."
+    />
+    <title>HalftoneSplat / Petri</title>
+    <style>
+      html.image-relief-page[data-relief-image] .compact-image-library {
+        display: grid !important;
+      }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="image-relief">
+    <main class="shell">
+      <section class="viewer" aria-label="Image relief point field">
+        <div id="scene" class="scene"></div>
+
+        <div id="loading" class="loading" aria-hidden="true">
+          <span class="loading__bar"><span></span></span>
+        </div>
+
+        <aside class="performance-panel" aria-label="Point field" hidden>
+          <dl class="performance-panel__metrics">
+            <div>
+              <dt>Points</dt>
+              <dd id="metric-points">—</dd>
+            </div>
+            <div>
+              <dt>Grid</dt>
+              <dd id="metric-grid">—</dd>
+            </div>
+            <div>
+              <dt>Rotation</dt>
+              <dd id="metric-rotation">—</dd>
+            </div>
+            <div>
+              <dt>FPS</dt>
+              <dd id="metric-fps">—</dd>
+            </div>
+          </dl>
+        </aside>
+
+        <button type="button" class="relief-toggle" data-toggle-relief aria-expanded="false" aria-label="Settings">
+          <svg class="light-controls__glyph light-controls__glyph--settings" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2 3.5h5.2M11.2 3.5H14M9.2 2v3M2 8h2.4M7.6 8H14M5.6 6.5v3M2 12.5h7.2M12.4 12.5H14M10.4 11v3" />
+          </svg>
+          <svg class="light-controls__glyph light-controls__glyph--chevron" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M6.25 3.5 10.75 8l-4.5 4.5" />
+          </svg>
+        </button>
+
+        <div id="compact-image-options" class="compact-image-library" role="group" aria-label="Source image"></div>
+      </section>
+    </main>
+
+    <aside class="light-controls" aria-label="Relief controls" aria-hidden="true" inert>
+      <div class="light-controls__stack">
+        <div class="light-controls__sheet">
+          <div class="light-controls__library">
+            <span class="light-controls__library-label">Images</span>
+            <div id="image-options" class="light-controls__library-list" role="group" aria-label="Source image"></div>
+            <button type="button" class="light-controls__reset" data-upload-image>
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 3.2v9.6M3.2 8h9.6" />
+              </svg>
+              <span>Upload image</span>
+            </button>
+            <input type="file" accept="image/*" hidden data-upload-input />
+          </div>
+          <div class="light-controls__nav" role="tablist" aria-label="Settings">
+            <button type="button" class="light-controls__tab" role="tab" id="tab-field" aria-selected="true" aria-controls="panel-field" data-settings-tab="field">
+              Field
+            </button>
+            <button type="button" class="light-controls__tab" role="tab" id="tab-sample" aria-selected="false" aria-controls="panel-sample" data-settings-tab="sample">
+              Sample
+            </button>
+            <button type="button" class="light-controls__tab" role="tab" id="tab-tone" aria-selected="false" aria-controls="panel-tone" data-settings-tab="tone">
+              Tone
+            </button>
+            <button type="button" class="light-controls__tab" role="tab" id="tab-view" aria-selected="false" aria-controls="panel-view" data-settings-tab="view">
+              View
+            </button>
+          </div>
+          <div class="light-controls__panel is-active" id="panel-field" role="tabpanel" aria-labelledby="tab-field" data-settings-panel="field">
+            <label>
+              <span>Cell size <output data-relief-value="cell-size">3 px</output></span>
+              <input name="cell-size" type="range" min="1" max="8" value="3" />
+            </label>
+            <label>
+              <span>Depth <output data-relief-value="depth">1.6</output></span>
+              <input name="depth" type="range" min="0" max="3.2" step="0.05" value="1.6" />
+            </label>
+            <label>
+              <span>Dot scale <output data-relief-value="dot-scale">1.0</output></span>
+              <input name="dot-scale" type="range" min="0.35" max="2.2" step="0.05" value="1.0" />
+            </label>
+            <label>
+              <span>Size floor <output data-relief-value="size-floor">0.34</output></span>
+              <input name="size-floor" type="range" min="0.05" max="0.80" step="0.01" value="0.34" />
+            </label>
+            <label>
+              <span>Depth scale <output data-relief-value="depth-scale">1.0</output></span>
+              <input name="depth-scale" type="range" min="0.20" max="2.00" step="0.05" value="1.0" />
+            </label>
+          </div>
+          <div class="light-controls__panel" id="panel-sample" role="tabpanel" aria-labelledby="tab-sample" data-settings-panel="sample" hidden>
+            <label class="light-controls__toggle">
+              <span>Refine detail</span>
+              <input name="refine-detail" type="checkbox" checked />
+            </label>
+            <label>
+              <span>Refine luma <output data-relief-value="refine-luma">0.38</output></span>
+              <input name="refine-luma" type="range" min="0.05" max="0.90" step="0.01" value="0.38" />
+            </label>
+            <label>
+              <span>Refine contrast <output data-relief-value="refine-contrast">0.11</output></span>
+              <input name="refine-contrast" type="range" min="0.01" max="0.40" step="0.01" value="0.11" />
+            </label>
+            <label>
+              <span>Refine scale <output data-relief-value="refine-scale">0.22</output></span>
+              <input name="refine-scale" type="range" min="0.10" max="0.80" step="0.01" value="0.22" />
+            </label>
+            <label>
+              <span>Skip luma <output data-relief-value="skip-luma">0.97</output></span>
+              <input name="skip-luma" type="range" min="0" max="1" step="0.005" value="0.97" />
+            </label>
+            <label>
+              <span>Skip chroma <output data-relief-value="skip-chroma">0.030</output></span>
+              <input name="skip-chroma" type="range" min="0" max="0.20" step="0.001" value="0.030" />
+            </label>
+            <label>
+              <span>Min neighbors <output data-relief-value="min-neighbors">0</output></span>
+              <input name="min-neighbors" type="range" min="0" max="8" step="1" value="0" />
+            </label>
+            <label>
+              <span>Min ink <output data-relief-value="min-ink">0.006</output></span>
+              <input name="min-ink" type="range" min="0" max="0.08" step="0.001" value="0.006" />
+            </label>
+            <label class="light-controls__toggle">
+              <span>Invert</span>
+              <input name="invert" type="checkbox" />
+            </label>
+          </div>
+          <div class="light-controls__panel" id="panel-tone" role="tabpanel" aria-labelledby="tab-tone" data-settings-panel="tone" hidden>
+            <label>
+              <span>Tone gamma <output data-relief-value="tone-gamma">1.08</output></span>
+              <input name="tone-gamma" type="range" min="0.30" max="2.00" step="0.02" value="1.08" />
+            </label>
+            <label class="light-controls__toggle">
+              <span>Stretch tone</span>
+              <input name="stretch-tone" type="checkbox" checked />
+            </label>
+            <label class="light-controls__toggle">
+              <span>Keep all</span>
+              <input name="keep-all" type="checkbox" />
+            </label>
+            <label class="light-controls__toggle">
+              <span>Fill paper</span>
+              <input name="fill-paper" type="checkbox" />
+            </label>
+            <label class="light-controls__toggle">
+              <span>Soft curve</span>
+              <input name="soft-curve" type="checkbox" />
+            </label>
+          </div>
+          <div class="light-controls__panel" id="panel-view" role="tabpanel" aria-labelledby="tab-view" data-settings-panel="view" hidden>
+            <label class="light-controls__toggle">
+              <span>Orbit</span>
+              <input name="orbit" type="checkbox" />
+            </label>
+            <label class="light-controls__toggle">
+              <span>Show metrics</span>
+              <input name="show-metrics" type="checkbox" />
+            </label>
+            <div class="light-controls__region-tools">
+              <button type="button" class="light-controls__reset" data-draw-regions aria-pressed="false">
+                Draw regions
+              </button>
+              <button type="button" class="light-controls__reset" data-clear-regions disabled>
+                Clear
+              </button>
+            </div>
+            <p class="light-controls__hint" data-region-hint>Draw boxes on the field to overlay 1 T C A 0 G.</p>
+            <div class="light-controls__range-group" role="group" aria-label="Depth range">
+              <label>
+                <span>Front clip <output data-relief-value="front-cull">0.00</output></span>
+                <input name="front-cull" type="range" min="0.00" max="0.89" step="0.01" value="0.00" />
+              </label>
+              <label>
+                <span>Back clip <output data-relief-value="back-cull">0.90</output></span>
+                <input name="back-cull" type="range" min="0.01" max="1.00" step="0.01" value="0.90" />
+              </label>
+            </div>
+            <div class="light-controls__colors">
+              <label class="light-controls__swatch">
+                <span>Dot color</span>
+                <input name="dot-color" type="color" value="#0d42f0" />
+              </label>
+              <label class="light-controls__swatch">
+                <span>Background</span>
+                <input name="background" type="color" value="#f3f3f3" />
+              </label>
+              <div class="light-controls__color-tools">
+                <div class="light-controls__presets" role="listbox" aria-label="Recommended colors">
+                  <button type="button" class="light-controls__preset" data-ink="#0d42f0" data-fill="#f3f3f3" aria-label="Blue on paper" title="Blue on paper" style="--ink:#0d42f0;--fill:#f3f3f3"></button>
+                  <button type="button" class="light-controls__preset" data-ink="#111111" data-fill="#f3f3f3" aria-label="Ink on paper" title="Ink on paper" style="--ink:#111111;--fill:#f3f3f3"></button>
+                  <button type="button" class="light-controls__preset" data-ink="#f3f3f3" data-fill="#111111" aria-label="Paper on ink" title="Paper on ink" style="--ink:#f3f3f3;--fill:#111111"></button>
+                  <button type="button" class="light-controls__preset" data-ink="#faf6ec" data-fill="#0d42f0" aria-label="Cream on blue" title="Cream on blue" style="--ink:#faf6ec;--fill:#0d42f0"></button>
+                  <button type="button" class="light-controls__preset" data-ink="#0d42f0" data-fill="#111111" aria-label="Blue on night" title="Blue on night" style="--ink:#0d42f0;--fill:#111111"></button>
+                  <button type="button" class="light-controls__preset" data-ink="#111111" data-fill="#faf6ec" aria-label="Ink on cream" title="Ink on cream" style="--ink:#111111;--fill:#faf6ec"></button>
+                  <button type="button" class="light-controls__preset" data-ink="#e6462d" data-fill="#faf6ec" aria-label="Vermilion on cream" title="Vermilion on cream" style="--ink:#e6462d;--fill:#faf6ec"></button>
+                </div>
+                <button type="button" class="light-controls__swap" data-swap-colors aria-label="Swap dot color and background" title="Swap">
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M4.2 6.2h7.2M9.4 4.1 11.6 6.2 9.4 8.3" />
+                    <path d="M11.8 9.8H4.6M6.6 7.7 4.4 9.8 6.6 11.9" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <label>
+              <span>Duration <output data-relief-value="export-duration">14 s</output></span>
+              <input name="export-duration" type="range" min="6" max="24" step="1" value="14" />
+            </label>
+            <label>
+              <span>FPS <output data-relief-value="export-fps">30</output></span>
+              <input name="export-fps" type="range" min="12" max="60" step="1" value="30" />
+            </label>
+            <label class="light-controls__toggle">
+              <span>Hard Color edges</span>
+              <input name="snap-blue" type="checkbox" checked />
+            </label>
+          </div>
+          <div class="light-controls__actions">
+            <button type="button" class="light-controls__reset" data-reset-relief>
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M3.15 6.4A5.15 5.15 0 1 1 2.7 8.25" />
+                <path d="M3.15 2.75v3.65h3.55" />
+              </svg>
+              <span>Reset</span>
+            </button>
+            <hr class="light-controls__rule" />
+            <div class="light-controls__formats light-controls__formats--sizes" role="radiogroup" aria-label="Export size">
+              <label>
+                <input name="export-size" type="radio" value="square" checked />
+                <span>Square</span>
+              </label>
+              <label>
+                <input name="export-size" type="radio" value="wide" />
+                <span>1130×600</span>
+              </label>
+            </div>
+            <div class="light-controls__formats" role="radiogroup" aria-label="Export format">
+              <label>
+                <input name="export-format" type="radio" value="gif" />
+                <span>GIF</span>
+              </label>
+              <label>
+                <input name="export-format" type="radio" value="webm" checked />
+                <span>WebM</span>
+              </label>
+              <label>
+                <input name="export-format" type="radio" value="mp4" />
+                <span>MP4</span>
+              </label>
+              <label>
+                <input name="export-format" type="radio" value="png" />
+                <span>PNG</span>
+              </label>
+            </div>
+            <button type="button" class="light-controls__reset" data-export-video title="Loop at the current view size">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M7.1 3.2H4.4A1.2 1.2 0 0 0 3.2 4.4v7.2A1.2 1.2 0 0 0 4.4 12.8h7.2a1.2 1.2 0 0 0 1.2-1.2V8.9" />
+                <g class="light-controls__glyph-arrow">
+                  <path d="M8.15 7.85 12.8 3.2" />
+                  <path d="M9.7 3.2h3.1v3.1" />
+                </g>
+              </svg>
+              <span data-export-label>Export video</span>
+            </button>
+            <div class="light-controls__export" data-export-status hidden>
+              <div class="light-controls__export-row">
+                <span class="light-controls__export-copy" data-export-copy>Exporting<span class="light-controls__ellipsis" aria-hidden="true"></span></span>
+                <output class="light-controls__export-percent" data-export-percent>0%</output>
+              </div>
+              <div class="light-controls__export-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-export-bar>
+                <span class="light-controls__export-fill" data-export-fill></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <footer class="hell-logo">
+      <img src="/hell-logo.png" alt="HalftoneSplat" />
+    </footer>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      if (!params.has("still")) {
+        params.set("still", "");
+        const query = [...params.entries()]
+          .map(([key, value]) => (value ? `${key}=${encodeURIComponent(value)}` : key))
+          .join("&");
+        history.replaceState(null, "", `${location.pathname}?${query}`);
+      }
+    </script>
+    <script type="module" src="/src/image-relief.js?v=intestine"></script>
+  </body>
+</html>
