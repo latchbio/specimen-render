@@ -174,6 +174,8 @@ const MAX_REGIONS = 5;
 const ASCII_SCALE = 3;
 const ASCII_GLYPH_COLUMNS = 4;
 const ASCII_GLYPH_ROWS = 7;
+const ASCII_CELL_WIDTH = 12;
+const ASCII_CELL_HEIGHT = 18;
 const ASCII_GLYPHS = [
   ["..#.", ".##.", "..#.", "..#.", "..#.", "..#.", ".###"],
   ["####", ".#..", ".#..", ".#..", ".#..", ".#..", ".#.."],
@@ -362,7 +364,7 @@ const overlayMaterial = new THREE.ShaderMaterial({
     tDiffuse: { value: null },
     uGlyphAtlas: { value: createGlyphAtlas() },
     uResolution: { value: new THREE.Vector2(1, 1) },
-    uGlyphCellSize: { value: new THREE.Vector2(8, 12) },
+    uGlyphCellSize: { value: new THREE.Vector2(ASCII_CELL_WIDTH, ASCII_CELL_HEIGHT) },
     uBoxes: { value: regionBoxes },
     uBoxCount: { value: 0 },
     uInk: { value: SCREEN_BLUE.clone() },
@@ -2230,8 +2232,8 @@ function drawRegionOverlay(context, width, height, { clear = true, time } = {}) 
       const sampleV = projectCell(0, 1);
       const sampleWidth = Math.hypot(sampleU1.x - sampleU.x, sampleU1.y - sampleU.y);
       const sampleHeight = Math.hypot(sampleV.x - sampleU.x, sampleV.y - sampleU.y);
-      const strideU = Math.max(stride, Math.ceil(8 / Math.max(sampleWidth, 0.01)));
-      const strideV = Math.max(stride, Math.ceil(12 / Math.max(sampleHeight, 0.01)));
+      const strideU = Math.max(stride, Math.ceil(ASCII_CELL_WIDTH / Math.max(sampleWidth, 0.01)));
+      const strideV = Math.max(stride, Math.ceil(ASCII_CELL_HEIGHT / Math.max(sampleHeight, 0.01)));
       const iMin = Math.max(0, Math.floor(Math.min(...corners.map((cell) => cell.i))) - strideU);
       const iMax = Math.min(fieldGrid.uCount - 1, Math.ceil(Math.max(...corners.map((cell) => cell.i))) + strideU);
       const jMin = Math.max(0, Math.floor(Math.min(...corners.map((cell) => cell.j))) - strideV);
